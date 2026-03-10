@@ -136,7 +136,7 @@ The LBPH (Local Binary Pattern Histogram) baseline comparison was attempted but 
 
 ### 4.1 Cosine Threshold Sweep (0.20 → 0.70)
 
-N_enrolled = 62 (25 Yash + 25 Aramaan + 12 Harshhini, 1 image failed detection). Synthetic impostors only.
+N_enrolled = 62 (24 Yash + 25 Aramaan + 13 Harshhini, 3 images failed detection). Synthetic impostors only.
 
 | Threshold | FAR | FRR | TAR | Notes |
 |-----------|-----|-----|-----|-------|
@@ -279,16 +279,17 @@ Feature vector: 42 floats (x, y for 21 MediaPipe hand landmarks, normalised to i
 | Component | Mean (ms) | Median (ms) | p95 (ms) | Measured? |
 |-----------|-----------|-------------|----------|-----------|
 | Camera I/O | — | — | — | ✗ Not measured |
-| Face Detect (YuNet) | 2.59 | 2.45 | 3.00 | ✓ (synthetic frames) |
-| **SFace Embed** | **0.00** | **0.00** | **0.00** | **✗ Skipped — face_db absent** |
+| Face Detect (YuNet) | 2.37 | 2.32 | 2.71 | ✓ (synthetic frames, n=300) |
+| **SFace Embed** | **0.00** | **0.00** | **0.00** | **✗ Skipped — face_db absent during this run** |
 | Identity Match | 0.0002 | 0.0002 | 0.0003 | ✓ |
-| Temporal Vote | 0.003 | 0.003 | 0.005 | ✓ |
-| Gesture (HandLandmarker) | 10.70 | 11.13 | 11.93 | ✓ (real MediaPipe, synthetic ROI) |
+| Temporal Vote | 0.002 | 0.002 | 0.004 | ✓ |
+| Gesture (HandLandmarker) | 10.80 | 10.95 | 11.12 | ✓ (real MediaPipe, synthetic ROI) |
 | HTTP Dispatch | 0.00 | 0.00 | 0.00 | ✗ Not measured |
-| **Total (measured)** | **13.32** | **13.64** | **14.70** | partial |
+| **Total (measured)** | **13.18** | **13.31** | **13.77** | partial |
 
 **More realistic M3 estimate (including missing steps):**
 - Add SFace ~2.5 ms + camera I/O ~8 ms = **~24 ms → ~42 FPS on M3**
+- Measured processing only (n=300 frames): 13.18 ms mean → ~76 FPS (processing only, no I/O)
 
 **Raspberry Pi 4 estimate (not measured — requires hardware):**
 - YuNet: ~13–26 ms | SFace: ~80–120 ms | Gesture: ~50–100 ms | Camera I/O: ~3–5 ms
@@ -313,12 +314,14 @@ Gesture is dominant even in the measured-only view. With SFace added it would be
 
 > Note: This sweep uses a Gaussian-blur proxy for gesture timing (not actual MediaPipe), so values represent the vote-accumulation overhead only, not the full gesture pipeline cost. With real MediaPipe inference, each vote costs ~10.7 ms, so decision latency scales linearly: votes × 10.7 ms.
 
-| Votes Required | Proxy Decision (ms) | Real MediaPipe Estimate (ms) |
-|---------------|--------------------|-----------------------------|
-| 1 | 1.73 | ~10.7 |
-| 2 | 0.12 | ~21.4 |
-| 3 | 0.16 | ~32.1 |
-| 4 | 0.20 | ~42.8 |
+| Votes Required | Proxy Decision (ms)* | Real MediaPipe Estimate (ms) |
+|---------------|---------------------|-----------------------------|
+| 1 | ~1.8 | ~10.8 |
+| 2 | ~0.17 | ~21.6 |
+| 3 | ~0.16 | ~32.4 |
+| 4 | ~0.20 | ~43.2 |
+
+\* Proxy values are sub-millisecond Gaussian-blur overhead only — not reproducible to exact values due to CPU cache effects. The real decision cost equals votes × ~10.8 ms (MediaPipe HandLandmarker per frame).
 
 ![Gesture Vote Sweep](phase6/gesture_vote_sweep.png)
 

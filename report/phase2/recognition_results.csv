@@ -1,117 +1,117 @@
 config,image,lighting,true_name,predicted,sample_score,centroid_score,latency_ms,correct
-A: Score only,enrolled/Yash/018.jpg,L0,Yash,Yash,1.0,0.7162,89.13,True
-A: Score only,enrolled/Yash/019.jpg,L0,Yash,Yash,1.0,0.8795,25.2,True
-A: Score only,enrolled/Yash/020.jpg,L0,Yash,Yash,1.0,0.8804,30.74,True
-A: Score only,enrolled/Yash/021.jpg,L0,Yash,Yash,1.0,0.6609,16.57,True
-A: Score only,enrolled/Yash/022.jpg,L0,Yash,Yash,1.0,0.6837,15.73,True
-A: Score only,enrolled/Yash/023.jpg,L0,Yash,Yash,1.0,0.8825,16.45,True
-A: Score only,enrolled/Yash/024.jpg,L0,Yash,Yash,1.0,0.8711,16.43,True
-A: Score only,enrolled/Yash/025.jpg,L0,Yash,Yash,1.0,0.8758,18.17,True
-A: Score only,enrolled/Aramaan/018.jpg,L0,Aramaan,Aramaan,1.0,0.8306,18.61,True
-A: Score only,enrolled/Aramaan/019.jpg,L0,Aramaan,Aramaan,1.0,0.8554,19.84,True
-A: Score only,enrolled/Aramaan/020.jpg,L0,Aramaan,Aramaan,1.0,0.8611,23.33,True
-A: Score only,enrolled/Aramaan/021.jpg,L0,Aramaan,Aramaan,1.0,0.8315,23.77,True
-A: Score only,enrolled/Aramaan/022.jpg,L0,Aramaan,Aramaan,1.0,0.8788,20.41,True
-A: Score only,enrolled/Aramaan/023.jpg,L0,Aramaan,Aramaan,1.0,0.7139,23.19,True
-A: Score only,enrolled/Aramaan/024.jpg,L0,Aramaan,Aramaan,0.8368,0.6791,22.62,True
-A: Score only,enrolled/Aramaan/025.jpg,L0,Aramaan,Aramaan,1.0,0.6754,29.47,True
-A: Score only,impostors/Harshhini/003.jpg,L0,Unknown,Unknown,0.3041,0.0,25.96,True
-A: Score only,impostors/Harshhini/004.jpg,L0,Unknown,Unknown,0.26,0.0,29.87,True
-A: Score only,impostors/Harshhini/005.jpg,L0,Unknown,Unknown,0.2845,0.0,21.06,True
-A: Score only,impostors/Harshhini/006.jpg,L0,Unknown,Unknown,0.3332,0.0,18.98,True
-A: Score only,impostors/Harshhini/007.jpg,L0,Unknown,Unknown,0.166,0.0,25.82,True
-A: Score only,impostors/Harshhini/008.jpg,L0,Unknown,Unknown,0.2485,0.0,22.03,True
-A: Score only,impostors/Harshhini/009.jpg,L0,Unknown,Unknown,0.2363,0.0,20.46,True
-A: Score only,impostors/Harshhini/010.jpg,L0,Unknown,Unknown,0.3628,0.0,23.52,True
-A: Score only,impostors/Harshhini/011.jpg,L0,Unknown,Unknown,0.2814,0.0,21.47,True
-A: Score only,impostors/Harshhini/012.jpg,L0,Unknown,Unknown,0.1892,0.0,22.77,True
-A: Score only,impostors/Harshhini/013.jpg,L0,Unknown,Unknown,0.2261,0.0,27.05,True
-A: Score only,impostors/Harshhini/import_001.jpg,L0,Unknown,Unknown,0.3034,0.0,91.69,True
-A: Score only,impostors/Harshhini/import_002.jpg,L0,Unknown,Unknown,0.3034,0.0,98.54,True
-B: Score+Margin,enrolled/Yash/018.jpg,L0,Yash,Yash,1.0,0.7162,25.51,True
-B: Score+Margin,enrolled/Yash/019.jpg,L0,Yash,Yash,1.0,0.8795,30.89,True
-B: Score+Margin,enrolled/Yash/020.jpg,L0,Yash,Yash,1.0,0.8804,24.65,True
-B: Score+Margin,enrolled/Yash/021.jpg,L0,Yash,Yash,1.0,0.6609,28.93,True
-B: Score+Margin,enrolled/Yash/022.jpg,L0,Yash,Yash,1.0,0.6837,23.33,True
-B: Score+Margin,enrolled/Yash/023.jpg,L0,Yash,Yash,1.0,0.8825,31.16,True
-B: Score+Margin,enrolled/Yash/024.jpg,L0,Yash,Yash,1.0,0.8711,27.65,True
-B: Score+Margin,enrolled/Yash/025.jpg,L0,Yash,Yash,1.0,0.8758,28.9,True
-B: Score+Margin,enrolled/Aramaan/018.jpg,L0,Aramaan,Aramaan,1.0,0.8306,24.62,True
-B: Score+Margin,enrolled/Aramaan/019.jpg,L0,Aramaan,Aramaan,1.0,0.8554,26.15,True
-B: Score+Margin,enrolled/Aramaan/020.jpg,L0,Aramaan,Aramaan,1.0,0.8611,26.82,True
-B: Score+Margin,enrolled/Aramaan/021.jpg,L0,Aramaan,Aramaan,1.0,0.8315,26.05,True
-B: Score+Margin,enrolled/Aramaan/022.jpg,L0,Aramaan,Aramaan,1.0,0.8788,26.03,True
-B: Score+Margin,enrolled/Aramaan/023.jpg,L0,Aramaan,Aramaan,1.0,0.7139,26.66,True
-B: Score+Margin,enrolled/Aramaan/024.jpg,L0,Aramaan,Aramaan,0.8368,0.6791,22.72,True
-B: Score+Margin,enrolled/Aramaan/025.jpg,L0,Aramaan,Aramaan,1.0,0.6754,29.98,True
-B: Score+Margin,impostors/Harshhini/003.jpg,L0,Unknown,Unknown,0.3041,0.0,35.77,True
-B: Score+Margin,impostors/Harshhini/004.jpg,L0,Unknown,Unknown,0.26,0.0,28.01,True
-B: Score+Margin,impostors/Harshhini/005.jpg,L0,Unknown,Unknown,0.2845,0.0,33.03,True
-B: Score+Margin,impostors/Harshhini/006.jpg,L0,Unknown,Unknown,0.3332,0.0,16.22,True
-B: Score+Margin,impostors/Harshhini/007.jpg,L0,Unknown,Unknown,0.166,0.0,18.7,True
-B: Score+Margin,impostors/Harshhini/008.jpg,L0,Unknown,Unknown,0.2485,0.0,26.98,True
-B: Score+Margin,impostors/Harshhini/009.jpg,L0,Unknown,Unknown,0.2363,0.0,25.32,True
-B: Score+Margin,impostors/Harshhini/010.jpg,L0,Unknown,Unknown,0.3628,0.0,25.68,True
-B: Score+Margin,impostors/Harshhini/011.jpg,L0,Unknown,Unknown,0.2814,0.0,28.71,True
-B: Score+Margin,impostors/Harshhini/012.jpg,L0,Unknown,Unknown,0.1892,0.0,24.39,True
-B: Score+Margin,impostors/Harshhini/013.jpg,L0,Unknown,Unknown,0.2261,0.0,19.94,True
-B: Score+Margin,impostors/Harshhini/import_001.jpg,L0,Unknown,Unknown,0.3034,0.0,92.63,True
-B: Score+Margin,impostors/Harshhini/import_002.jpg,L0,Unknown,Unknown,0.3034,0.0,111.85,True
-C: Score+Centroid,enrolled/Yash/018.jpg,L0,Yash,Yash,1.0,0.7162,21.65,True
-C: Score+Centroid,enrolled/Yash/019.jpg,L0,Yash,Yash,1.0,0.8795,22.45,True
-C: Score+Centroid,enrolled/Yash/020.jpg,L0,Yash,Yash,1.0,0.8804,20.77,True
-C: Score+Centroid,enrolled/Yash/021.jpg,L0,Yash,Yash,1.0,0.6609,22.43,True
-C: Score+Centroid,enrolled/Yash/022.jpg,L0,Yash,Yash,1.0,0.6837,29.26,True
-C: Score+Centroid,enrolled/Yash/023.jpg,L0,Yash,Yash,1.0,0.8825,27.23,True
-C: Score+Centroid,enrolled/Yash/024.jpg,L0,Yash,Yash,1.0,0.8711,25.18,True
-C: Score+Centroid,enrolled/Yash/025.jpg,L0,Yash,Yash,1.0,0.8758,29.16,True
-C: Score+Centroid,enrolled/Aramaan/018.jpg,L0,Aramaan,Aramaan,1.0,0.8306,28.6,True
-C: Score+Centroid,enrolled/Aramaan/019.jpg,L0,Aramaan,Aramaan,1.0,0.8554,41.84,True
-C: Score+Centroid,enrolled/Aramaan/020.jpg,L0,Aramaan,Aramaan,1.0,0.8611,40.06,True
-C: Score+Centroid,enrolled/Aramaan/021.jpg,L0,Aramaan,Aramaan,1.0,0.8315,36.91,True
-C: Score+Centroid,enrolled/Aramaan/022.jpg,L0,Aramaan,Aramaan,1.0,0.8788,26.75,True
-C: Score+Centroid,enrolled/Aramaan/023.jpg,L0,Aramaan,Aramaan,1.0,0.7139,26.81,True
-C: Score+Centroid,enrolled/Aramaan/024.jpg,L0,Aramaan,Aramaan,0.8368,0.6791,23.7,True
-C: Score+Centroid,enrolled/Aramaan/025.jpg,L0,Aramaan,Aramaan,1.0,0.6754,28.27,True
-C: Score+Centroid,impostors/Harshhini/003.jpg,L0,Unknown,Unknown,0.3041,0.0,25.78,True
-C: Score+Centroid,impostors/Harshhini/004.jpg,L0,Unknown,Unknown,0.26,0.0,20.16,True
-C: Score+Centroid,impostors/Harshhini/005.jpg,L0,Unknown,Unknown,0.2845,0.0,20.4,True
-C: Score+Centroid,impostors/Harshhini/006.jpg,L0,Unknown,Unknown,0.3332,0.0,22.71,True
-C: Score+Centroid,impostors/Harshhini/007.jpg,L0,Unknown,Unknown,0.166,0.0,21.33,True
-C: Score+Centroid,impostors/Harshhini/008.jpg,L0,Unknown,Unknown,0.2485,0.0,21.46,True
-C: Score+Centroid,impostors/Harshhini/009.jpg,L0,Unknown,Unknown,0.2363,0.0,31.59,True
-C: Score+Centroid,impostors/Harshhini/010.jpg,L0,Unknown,Unknown,0.3628,0.0,28.44,True
-C: Score+Centroid,impostors/Harshhini/011.jpg,L0,Unknown,Unknown,0.2814,0.0,40.56,True
-C: Score+Centroid,impostors/Harshhini/012.jpg,L0,Unknown,Unknown,0.1892,0.0,37.8,True
-C: Score+Centroid,impostors/Harshhini/013.jpg,L0,Unknown,Unknown,0.2261,0.0,27.3,True
-C: Score+Centroid,impostors/Harshhini/import_001.jpg,L0,Unknown,Unknown,0.3034,0.0,91.72,True
-C: Score+Centroid,impostors/Harshhini/import_002.jpg,L0,Unknown,Unknown,0.3034,0.0,89.21,True
-D: Full two-gate,enrolled/Yash/018.jpg,L0,Yash,Yash,1.0,0.7162,28.39,True
-D: Full two-gate,enrolled/Yash/019.jpg,L0,Yash,Yash,1.0,0.8795,26.5,True
-D: Full two-gate,enrolled/Yash/020.jpg,L0,Yash,Yash,1.0,0.8804,20.9,True
-D: Full two-gate,enrolled/Yash/021.jpg,L0,Yash,Yash,1.0,0.6609,18.95,True
-D: Full two-gate,enrolled/Yash/022.jpg,L0,Yash,Yash,1.0,0.6837,20.95,True
-D: Full two-gate,enrolled/Yash/023.jpg,L0,Yash,Yash,1.0,0.8825,21.19,True
-D: Full two-gate,enrolled/Yash/024.jpg,L0,Yash,Yash,1.0,0.8711,42.9,True
-D: Full two-gate,enrolled/Yash/025.jpg,L0,Yash,Yash,1.0,0.8758,19.27,True
-D: Full two-gate,enrolled/Aramaan/018.jpg,L0,Aramaan,Aramaan,1.0,0.8306,25.5,True
-D: Full two-gate,enrolled/Aramaan/019.jpg,L0,Aramaan,Aramaan,1.0,0.8554,23.18,True
-D: Full two-gate,enrolled/Aramaan/020.jpg,L0,Aramaan,Aramaan,1.0,0.8611,35.48,True
-D: Full two-gate,enrolled/Aramaan/021.jpg,L0,Aramaan,Aramaan,1.0,0.8315,20.61,True
-D: Full two-gate,enrolled/Aramaan/022.jpg,L0,Aramaan,Aramaan,1.0,0.8788,19.77,True
-D: Full two-gate,enrolled/Aramaan/023.jpg,L0,Aramaan,Aramaan,1.0,0.7139,27.64,True
-D: Full two-gate,enrolled/Aramaan/024.jpg,L0,Aramaan,Aramaan,0.8368,0.6791,22.69,True
-D: Full two-gate,enrolled/Aramaan/025.jpg,L0,Aramaan,Aramaan,1.0,0.6754,26.41,True
-D: Full two-gate,impostors/Harshhini/003.jpg,L0,Unknown,Unknown,0.3041,0.0,29.69,True
-D: Full two-gate,impostors/Harshhini/004.jpg,L0,Unknown,Unknown,0.26,0.0,25.28,True
-D: Full two-gate,impostors/Harshhini/005.jpg,L0,Unknown,Unknown,0.2845,0.0,26.32,True
-D: Full two-gate,impostors/Harshhini/006.jpg,L0,Unknown,Unknown,0.3332,0.0,24.4,True
-D: Full two-gate,impostors/Harshhini/007.jpg,L0,Unknown,Unknown,0.166,0.0,32.4,True
-D: Full two-gate,impostors/Harshhini/008.jpg,L0,Unknown,Unknown,0.2485,0.0,29.04,True
-D: Full two-gate,impostors/Harshhini/009.jpg,L0,Unknown,Unknown,0.2363,0.0,30.15,True
-D: Full two-gate,impostors/Harshhini/010.jpg,L0,Unknown,Unknown,0.3628,0.0,26.53,True
-D: Full two-gate,impostors/Harshhini/011.jpg,L0,Unknown,Unknown,0.2814,0.0,25.0,True
-D: Full two-gate,impostors/Harshhini/012.jpg,L0,Unknown,Unknown,0.1892,0.0,23.32,True
-D: Full two-gate,impostors/Harshhini/013.jpg,L0,Unknown,Unknown,0.2261,0.0,20.98,True
-D: Full two-gate,impostors/Harshhini/import_001.jpg,L0,Unknown,Unknown,0.3034,0.0,96.9,True
-D: Full two-gate,impostors/Harshhini/import_002.jpg,L0,Unknown,Unknown,0.3034,0.0,94.36,True
+A: Score only,enrolled/Yash/018.jpg,L0,Yash,Yash,1.0,0.7162,84.81,True
+A: Score only,enrolled/Yash/019.jpg,L0,Yash,Yash,1.0,0.8795,7.58,True
+A: Score only,enrolled/Yash/020.jpg,L0,Yash,Yash,1.0,0.88,6.34,True
+A: Score only,enrolled/Yash/021.jpg,L0,Yash,Yash,1.0,0.6602,7.1,True
+A: Score only,enrolled/Yash/022.jpg,L0,Yash,Yash,1.0,0.6838,6.23,True
+A: Score only,enrolled/Yash/023.jpg,L0,Yash,Yash,1.0,0.8822,6.25,True
+A: Score only,enrolled/Yash/024.jpg,L0,Yash,Yash,1.0,0.8716,6.37,True
+A: Score only,enrolled/Yash/025.jpg,L0,Yash,Yash,1.0,0.8756,6.24,True
+A: Score only,enrolled/Aramaan/018.jpg,L0,Aramaan,Aramaan,1.0,0.8314,6.42,True
+A: Score only,enrolled/Aramaan/019.jpg,L0,Aramaan,Aramaan,1.0,0.8556,6.63,True
+A: Score only,enrolled/Aramaan/020.jpg,L0,Aramaan,Aramaan,1.0,0.8615,6.26,True
+A: Score only,enrolled/Aramaan/021.jpg,L0,Aramaan,Aramaan,1.0,0.8317,7.64,True
+A: Score only,enrolled/Aramaan/022.jpg,L0,Aramaan,Aramaan,1.0,0.879,6.42,True
+A: Score only,enrolled/Aramaan/023.jpg,L0,Aramaan,Aramaan,1.0,0.7135,5.84,True
+A: Score only,enrolled/Aramaan/024.jpg,L0,Aramaan,Aramaan,0.8354,0.6789,6.5,True
+A: Score only,enrolled/Aramaan/025.jpg,L0,Aramaan,Aramaan,1.0,0.6771,6.21,True
+A: Score only,impostors/Harshhini/003.jpg,L0,Unknown,Unknown,0.3043,0.0,6.23,True
+A: Score only,impostors/Harshhini/004.jpg,L0,Unknown,Unknown,0.2588,0.0,6.16,True
+A: Score only,impostors/Harshhini/005.jpg,L0,Unknown,Unknown,0.2848,0.0,6.49,True
+A: Score only,impostors/Harshhini/006.jpg,L0,Unknown,Unknown,0.3329,0.0,7.26,True
+A: Score only,impostors/Harshhini/007.jpg,L0,Unknown,Unknown,0.1654,0.0,6.03,True
+A: Score only,impostors/Harshhini/008.jpg,L0,Unknown,Unknown,0.2478,0.0,6.25,True
+A: Score only,impostors/Harshhini/009.jpg,L0,Unknown,Unknown,0.2379,0.0,6.45,True
+A: Score only,impostors/Harshhini/010.jpg,L0,Unknown,Unknown,0.3633,0.0,6.23,True
+A: Score only,impostors/Harshhini/011.jpg,L0,Unknown,Unknown,0.2828,0.0,7.45,True
+A: Score only,impostors/Harshhini/012.jpg,L0,Unknown,Unknown,0.1872,0.0,6.77,True
+A: Score only,impostors/Harshhini/013.jpg,L0,Unknown,Unknown,0.2257,0.0,6.28,True
+A: Score only,impostors/Harshhini/import_001.jpg,L0,Unknown,Unknown,0.3036,0.0,30.35,True
+A: Score only,impostors/Harshhini/import_002.jpg,L0,Unknown,Unknown,0.3036,0.0,25.65,True
+B: Score+Margin,enrolled/Yash/018.jpg,L0,Yash,Yash,1.0,0.7162,7.6,True
+B: Score+Margin,enrolled/Yash/019.jpg,L0,Yash,Yash,1.0,0.8795,6.68,True
+B: Score+Margin,enrolled/Yash/020.jpg,L0,Yash,Yash,1.0,0.88,6.29,True
+B: Score+Margin,enrolled/Yash/021.jpg,L0,Yash,Yash,1.0,0.6602,6.18,True
+B: Score+Margin,enrolled/Yash/022.jpg,L0,Yash,Yash,1.0,0.6838,6.27,True
+B: Score+Margin,enrolled/Yash/023.jpg,L0,Yash,Yash,1.0,0.8822,6.39,True
+B: Score+Margin,enrolled/Yash/024.jpg,L0,Yash,Yash,1.0,0.8716,6.08,True
+B: Score+Margin,enrolled/Yash/025.jpg,L0,Yash,Yash,1.0,0.8756,6.39,True
+B: Score+Margin,enrolled/Aramaan/018.jpg,L0,Aramaan,Aramaan,1.0,0.8314,7.12,True
+B: Score+Margin,enrolled/Aramaan/019.jpg,L0,Aramaan,Aramaan,1.0,0.8556,6.39,True
+B: Score+Margin,enrolled/Aramaan/020.jpg,L0,Aramaan,Aramaan,1.0,0.8615,6.56,True
+B: Score+Margin,enrolled/Aramaan/021.jpg,L0,Aramaan,Aramaan,1.0,0.8317,6.56,True
+B: Score+Margin,enrolled/Aramaan/022.jpg,L0,Aramaan,Aramaan,1.0,0.879,6.73,True
+B: Score+Margin,enrolled/Aramaan/023.jpg,L0,Aramaan,Aramaan,1.0,0.7135,6.48,True
+B: Score+Margin,enrolled/Aramaan/024.jpg,L0,Aramaan,Aramaan,0.8354,0.6789,7.52,True
+B: Score+Margin,enrolled/Aramaan/025.jpg,L0,Aramaan,Aramaan,1.0,0.6771,6.49,True
+B: Score+Margin,impostors/Harshhini/003.jpg,L0,Unknown,Unknown,0.3043,0.0,6.28,True
+B: Score+Margin,impostors/Harshhini/004.jpg,L0,Unknown,Unknown,0.2588,0.0,6.96,True
+B: Score+Margin,impostors/Harshhini/005.jpg,L0,Unknown,Unknown,0.2848,0.0,6.36,True
+B: Score+Margin,impostors/Harshhini/006.jpg,L0,Unknown,Unknown,0.3329,0.0,6.09,True
+B: Score+Margin,impostors/Harshhini/007.jpg,L0,Unknown,Unknown,0.1654,0.0,6.03,True
+B: Score+Margin,impostors/Harshhini/008.jpg,L0,Unknown,Unknown,0.2478,0.0,6.64,True
+B: Score+Margin,impostors/Harshhini/009.jpg,L0,Unknown,Unknown,0.2379,0.0,6.94,True
+B: Score+Margin,impostors/Harshhini/010.jpg,L0,Unknown,Unknown,0.3633,0.0,6.75,True
+B: Score+Margin,impostors/Harshhini/011.jpg,L0,Unknown,Unknown,0.2828,0.0,6.26,True
+B: Score+Margin,impostors/Harshhini/012.jpg,L0,Unknown,Unknown,0.1872,0.0,6.82,True
+B: Score+Margin,impostors/Harshhini/013.jpg,L0,Unknown,Unknown,0.2257,0.0,6.39,True
+B: Score+Margin,impostors/Harshhini/import_001.jpg,L0,Unknown,Unknown,0.3036,0.0,28.42,True
+B: Score+Margin,impostors/Harshhini/import_002.jpg,L0,Unknown,Unknown,0.3036,0.0,27.1,True
+C: Score+Centroid,enrolled/Yash/018.jpg,L0,Yash,Yash,1.0,0.7162,7.26,True
+C: Score+Centroid,enrolled/Yash/019.jpg,L0,Yash,Yash,1.0,0.8795,6.44,True
+C: Score+Centroid,enrolled/Yash/020.jpg,L0,Yash,Yash,1.0,0.88,6.76,True
+C: Score+Centroid,enrolled/Yash/021.jpg,L0,Yash,Yash,1.0,0.6602,6.75,True
+C: Score+Centroid,enrolled/Yash/022.jpg,L0,Yash,Yash,1.0,0.6838,7.62,True
+C: Score+Centroid,enrolled/Yash/023.jpg,L0,Yash,Yash,1.0,0.8822,6.78,True
+C: Score+Centroid,enrolled/Yash/024.jpg,L0,Yash,Yash,1.0,0.8716,6.56,True
+C: Score+Centroid,enrolled/Yash/025.jpg,L0,Yash,Yash,1.0,0.8756,6.93,True
+C: Score+Centroid,enrolled/Aramaan/018.jpg,L0,Aramaan,Aramaan,1.0,0.8314,6.92,True
+C: Score+Centroid,enrolled/Aramaan/019.jpg,L0,Aramaan,Aramaan,1.0,0.8556,6.28,True
+C: Score+Centroid,enrolled/Aramaan/020.jpg,L0,Aramaan,Aramaan,1.0,0.8615,7.1,True
+C: Score+Centroid,enrolled/Aramaan/021.jpg,L0,Aramaan,Aramaan,1.0,0.8317,6.02,True
+C: Score+Centroid,enrolled/Aramaan/022.jpg,L0,Aramaan,Aramaan,1.0,0.879,6.58,True
+C: Score+Centroid,enrolled/Aramaan/023.jpg,L0,Aramaan,Aramaan,1.0,0.7135,6.78,True
+C: Score+Centroid,enrolled/Aramaan/024.jpg,L0,Aramaan,Aramaan,0.8354,0.6789,7.0,True
+C: Score+Centroid,enrolled/Aramaan/025.jpg,L0,Aramaan,Aramaan,1.0,0.6771,7.03,True
+C: Score+Centroid,impostors/Harshhini/003.jpg,L0,Unknown,Unknown,0.3043,0.0,6.25,True
+C: Score+Centroid,impostors/Harshhini/004.jpg,L0,Unknown,Unknown,0.2588,0.0,6.35,True
+C: Score+Centroid,impostors/Harshhini/005.jpg,L0,Unknown,Unknown,0.2848,0.0,6.66,True
+C: Score+Centroid,impostors/Harshhini/006.jpg,L0,Unknown,Unknown,0.3329,0.0,6.99,True
+C: Score+Centroid,impostors/Harshhini/007.jpg,L0,Unknown,Unknown,0.1654,0.0,6.79,True
+C: Score+Centroid,impostors/Harshhini/008.jpg,L0,Unknown,Unknown,0.2478,0.0,6.42,True
+C: Score+Centroid,impostors/Harshhini/009.jpg,L0,Unknown,Unknown,0.2379,0.0,6.6,True
+C: Score+Centroid,impostors/Harshhini/010.jpg,L0,Unknown,Unknown,0.3633,0.0,6.37,True
+C: Score+Centroid,impostors/Harshhini/011.jpg,L0,Unknown,Unknown,0.2828,0.0,6.51,True
+C: Score+Centroid,impostors/Harshhini/012.jpg,L0,Unknown,Unknown,0.1872,0.0,6.43,True
+C: Score+Centroid,impostors/Harshhini/013.jpg,L0,Unknown,Unknown,0.2257,0.0,7.06,True
+C: Score+Centroid,impostors/Harshhini/import_001.jpg,L0,Unknown,Unknown,0.3036,0.0,29.02,True
+C: Score+Centroid,impostors/Harshhini/import_002.jpg,L0,Unknown,Unknown,0.3036,0.0,26.4,True
+D: Full two-gate,enrolled/Yash/018.jpg,L0,Yash,Yash,1.0,0.7162,7.8,True
+D: Full two-gate,enrolled/Yash/019.jpg,L0,Yash,Yash,1.0,0.8795,6.34,True
+D: Full two-gate,enrolled/Yash/020.jpg,L0,Yash,Yash,1.0,0.88,7.28,True
+D: Full two-gate,enrolled/Yash/021.jpg,L0,Yash,Yash,1.0,0.6602,6.54,True
+D: Full two-gate,enrolled/Yash/022.jpg,L0,Yash,Yash,1.0,0.6838,7.05,True
+D: Full two-gate,enrolled/Yash/023.jpg,L0,Yash,Yash,1.0,0.8822,6.62,True
+D: Full two-gate,enrolled/Yash/024.jpg,L0,Yash,Yash,1.0,0.8716,6.9,True
+D: Full two-gate,enrolled/Yash/025.jpg,L0,Yash,Yash,1.0,0.8756,7.28,True
+D: Full two-gate,enrolled/Aramaan/018.jpg,L0,Aramaan,Aramaan,1.0,0.8314,6.8,True
+D: Full two-gate,enrolled/Aramaan/019.jpg,L0,Aramaan,Aramaan,1.0,0.8556,6.92,True
+D: Full two-gate,enrolled/Aramaan/020.jpg,L0,Aramaan,Aramaan,1.0,0.8615,6.81,True
+D: Full two-gate,enrolled/Aramaan/021.jpg,L0,Aramaan,Aramaan,1.0,0.8317,6.65,True
+D: Full two-gate,enrolled/Aramaan/022.jpg,L0,Aramaan,Aramaan,1.0,0.879,7.71,True
+D: Full two-gate,enrolled/Aramaan/023.jpg,L0,Aramaan,Aramaan,1.0,0.7135,6.52,True
+D: Full two-gate,enrolled/Aramaan/024.jpg,L0,Aramaan,Aramaan,0.8354,0.6789,7.34,True
+D: Full two-gate,enrolled/Aramaan/025.jpg,L0,Aramaan,Aramaan,1.0,0.6771,6.49,True
+D: Full two-gate,impostors/Harshhini/003.jpg,L0,Unknown,Unknown,0.3043,0.0,6.33,True
+D: Full two-gate,impostors/Harshhini/004.jpg,L0,Unknown,Unknown,0.2588,0.0,7.47,True
+D: Full two-gate,impostors/Harshhini/005.jpg,L0,Unknown,Unknown,0.2848,0.0,6.53,True
+D: Full two-gate,impostors/Harshhini/006.jpg,L0,Unknown,Unknown,0.3329,0.0,7.16,True
+D: Full two-gate,impostors/Harshhini/007.jpg,L0,Unknown,Unknown,0.1654,0.0,6.43,True
+D: Full two-gate,impostors/Harshhini/008.jpg,L0,Unknown,Unknown,0.2478,0.0,6.52,True
+D: Full two-gate,impostors/Harshhini/009.jpg,L0,Unknown,Unknown,0.2379,0.0,6.88,True
+D: Full two-gate,impostors/Harshhini/010.jpg,L0,Unknown,Unknown,0.3633,0.0,6.42,True
+D: Full two-gate,impostors/Harshhini/011.jpg,L0,Unknown,Unknown,0.2828,0.0,6.45,True
+D: Full two-gate,impostors/Harshhini/012.jpg,L0,Unknown,Unknown,0.1872,0.0,6.47,True
+D: Full two-gate,impostors/Harshhini/013.jpg,L0,Unknown,Unknown,0.2257,0.0,6.73,True
+D: Full two-gate,impostors/Harshhini/import_001.jpg,L0,Unknown,Unknown,0.3036,0.0,27.86,True
+D: Full two-gate,impostors/Harshhini/import_002.jpg,L0,Unknown,Unknown,0.3036,0.0,26.07,True

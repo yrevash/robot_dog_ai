@@ -196,18 +196,46 @@ def extract_landmarks_mediapipe(
     [lmk[0].x, lmk[0].y, lmk[1].x, lmk[1].y, … lmk[20].x, lmk[20].y]
     normalised to [0, 1] by MediaPipe internally.
 
+    Supports both Tasks API (mediapipe 0.10+) landmarker objects
+    and legacy mp.solutions.hands.Hands objects.
+
     Returns None when no hand is detected.
     """
     rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
-    result = hands_solution.process(rgb)
-    if not result.multi_hand_landmarks:
-        return None
-    lmk = result.multi_hand_landmarks[0].landmark
+
+    # Tasks API path (HandLandmarker returned by _make_ml_landmarker)
+    if hasattr(hands_solution, "_is_tasks_api"):
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+        result = hands_solution.detect(mp_image)
+        if not result.hand_landmarks:
+            return None
+        lmk = result.hand_landmarks[0]
+    else:
+        # Legacy solutions API
+        result = hands_solution.process(rgb)
+        if not result.multi_hand_landmarks:
+            return None
+        lmk = result.multi_hand_landmarks[0].landmark
+
     features: List[float] = []
     for i in range(N_LANDMARKS):
         features.append(float(lmk[i].x))
         features.append(float(lmk[i].y))
     return features
+
+
+class _TasksAPIHandWrapper:
+    """Thin wrapper around HandLandmarker to signal Tasks API usage."""
+    _is_tasks_api = True
+
+    def __init__(self, landmarker) -> None:
+        self._lm = landmarker
+
+    def detect(self, mp_image):
+        return self._lm.detect(mp_image)
+
+    def close(self) -> None:
+        self._lm.close()
 
 
 def classify_frame_rule_based(
@@ -850,15 +878,38 @@ def run_compare_mode(
         log.error(f"Only {len(image_paths)} images found — need ≥30 for meaningful ML comparison.")
         return []
 
-    # ── Build feature matrix ──────────────────────────────────────────────────
+    # ── Build feature matrix (Tasks API for mediapipe 0.10+) ─────────────────
     import mediapipe as mp
-    hands = mp.solutions.hands.Hands(
-        static_image_mode=True,
-        max_num_hands=1,
-        model_complexity=0,
-        min_detection_confidence=0.5,
-        min_tracking_confidence=0.5,
-    )
+    try:
+        from mediapipe.tasks import python as _mp_tasks
+        from mediapipe.tasks.python import vision as _mp_vision
+        _model_path = str(MODELS_DIR / "hand_landmarker.task")
+        _base = _mp_tasks.BaseOptions(model_asset_path=_model_path)
+        _opts = _mp_vision.HandLandmarkerOptions(
+            base_options=_base,
+            running_mode=_mp_vision.RunningMode.IMAGE,
+            num_hands=1,
+            min_hand_detection_confidence=0.5,
+            min_hand_presence_confidence=0.45,
+            min_tracking_confidence=0.5,
+        )
+        _lm = _mp_vision.HandLandmarker.create_from_options(_opts)
+        hands = _TasksAPIHandWrapper(_lm)
+        log.info("ML feature extraction: using MediaPipe Tasks API (0.10+)")
+    except Exception as _exc:
+        log.debug("Tasks API unavailable (%s), trying mp.solutions", _exc)
+        try:
+            hands = mp.solutions.hands.Hands(
+                static_image_mode=True,
+                max_num_hands=1,
+                model_complexity=0,
+                min_detection_confidence=0.5,
+                min_tracking_confidence=0.5,
+            )
+            log.info("ML feature extraction: using MediaPipe solutions API (0.9.x)")
+        except Exception as _exc2:
+            log.error(f"Could not initialise MediaPipe for feature extraction: {_exc2}")
+            return []
     try:
         X, y_ml, subjects_ml = _build_feature_matrix(
             image_paths, true_labels, subjects, hands, log

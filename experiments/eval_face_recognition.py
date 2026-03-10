@@ -392,7 +392,8 @@ def _run_lbph_comparison(image_paths, detector, enrolled_names, log) -> list:
     log.info(f"  LBPH (conf<{CONF_THRESHOLD}):  TAR={m_lbph['TAR']:.3f}  FAR={m_lbph['FAR']:.3f}  ACC={m_lbph['ACC']:.3f}")
 
     return [
-        {"method": "LBPH baseline",     **{k: round(v, 4) for k, v in m_lbph.items()}},
+        {"method": "LBPH baseline", "TAR": round(m_lbph["TAR"], 4), "FAR": round(m_lbph["FAR"], 4),
+         "FRR": round(m_lbph["FRR"], 4), "ACC": round(m_lbph["ACC"], 4)},
     ]
 
 

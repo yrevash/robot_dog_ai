@@ -374,22 +374,57 @@ class MotionGate:
 
 class GestureClassifier:
     """
-    MediaPipe Hands Lite (model_complexity=0) + rule-based landmark classifier.
-    Uses the identical finger-state and palm-orientation logic as the desktop app.
+    MediaPipe hand landmark classifier + rule-based gesture recognition.
+    Uses Tasks API (mediapipe 0.10+) with hand_landmarker.task model.
+    Falls back to legacy mp.solutions.hands for mediapipe 0.9.x.
     Runs on a face-adjacent ROI for speed.
     """
 
     def __init__(self, hand_max_dim: int = 320) -> None:
         if not _MP_OK:
             raise RuntimeError("mediapipe is not installed.")
-        self._hands = mp.solutions.hands.Hands(
-            static_image_mode=False,
-            max_num_hands=1,
-            model_complexity=0,          # Lite model — ~2× faster than Full on RPi
-            min_detection_confidence=0.55,
-            min_tracking_confidence=0.45,
-        )
         self._hand_max_dim = hand_max_dim
+        self._use_tasks    = False
+
+        # Try Tasks API first (mediapipe 0.10+)
+        try:
+            from mediapipe.tasks import python as _mp_tasks
+            from mediapipe.tasks.python import vision as _mp_vision
+
+            _model_path = str(MODELS_DIR / "hand_landmarker.task")
+            if not Path(_model_path).exists():
+                raise FileNotFoundError(f"hand_landmarker.task not found at {_model_path}")
+
+            _base  = _mp_tasks.BaseOptions(model_asset_path=_model_path)
+            _opts  = _mp_vision.HandLandmarkerOptions(
+                base_options=_base,
+                running_mode=_mp_vision.RunningMode.IMAGE,
+                num_hands=1,
+                min_hand_detection_confidence=0.55,
+                min_hand_presence_confidence=0.45,
+                min_tracking_confidence=0.45,
+            )
+            self._landmarker = _mp_vision.HandLandmarker.create_from_options(_opts)
+            self._use_tasks  = True
+            log.info("GestureClassifier: using MediaPipe Tasks API (0.10+)")
+        except Exception as _exc:
+            # Fall back to legacy solutions API (mediapipe 0.9.x)
+            log.debug("Tasks API unavailable (%s), trying mp.solutions", _exc)
+            try:
+                self._hands = mp.solutions.hands.Hands(
+                    static_image_mode=False,
+                    max_num_hands=1,
+                    model_complexity=0,
+                    min_detection_confidence=0.55,
+                    min_tracking_confidence=0.45,
+                )
+                log.info("GestureClassifier: using MediaPipe solutions API (0.9.x)")
+            except Exception as _exc2:
+                raise RuntimeError(
+                    f"Could not initialise MediaPipe hand detector.\n"
+                    f"Tasks API error: {_exc}\n"
+                    f"Solutions API error: {_exc2}"
+                ) from _exc2
 
     # ── Geometry helpers (identical to desktop) ───────────────────────────────
 
@@ -568,24 +603,39 @@ class GestureClassifier:
             infer   = cv2.resize(roi, (infer_w, infer_h), interpolation=cv2.INTER_AREA)
 
         rgb = cv2.cvtColor(infer, cv2.COLOR_BGR2RGB)
-        try:
-            result = self._hands.process(rgb)
-        except Exception:
-            return None
-        if not result.multi_hand_landmarks:
-            return None
 
         hands_data, wrist_pts = [], []
-        for idx, hand_lm in enumerate(result.multi_hand_landmarks):
-            label = "Right"
-            if result.multi_handedness and idx < len(result.multi_handedness):
-                label = result.multi_handedness[idx].classification[0].label
-            lmk = hand_lm.landmark
-            gesture = self._classify(lmk, label)
-            wx = rx1 + int(lmk[0].x * roi_w)
-            wy = ry1 + int(lmk[0].y * roi_h)
-            hands_data.append(gesture)
-            wrist_pts.append((wx, wy))
+        try:
+            if self._use_tasks:
+                mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+                result   = self._landmarker.detect(mp_image)
+                if not result.hand_landmarks:
+                    return None
+                for idx, lmk in enumerate(result.hand_landmarks):
+                    label = "Right"
+                    if result.handedness and idx < len(result.handedness):
+                        label = result.handedness[idx][0].category_name
+                    gesture = self._classify(lmk, label)
+                    wx = rx1 + int(lmk[0].x * roi_w)
+                    wy = ry1 + int(lmk[0].y * roi_h)
+                    hands_data.append(gesture)
+                    wrist_pts.append((wx, wy))
+            else:
+                result = self._hands.process(rgb)
+                if not result.multi_hand_landmarks:
+                    return None
+                for idx, hand_lm in enumerate(result.multi_hand_landmarks):
+                    label = "Right"
+                    if result.multi_handedness and idx < len(result.multi_handedness):
+                        label = result.multi_handedness[idx].classification[0].label
+                    lmk = hand_lm.landmark
+                    gesture = self._classify(lmk, label)
+                    wx = rx1 + int(lmk[0].x * roi_w)
+                    wy = ry1 + int(lmk[0].y * roi_h)
+                    hands_data.append(gesture)
+                    wrist_pts.append((wx, wy))
+        except Exception:
+            return None
 
         chosen = self._pick_hand(wrist_pts, face_bbox)
         if chosen is None:
@@ -593,7 +643,10 @@ class GestureClassifier:
         return hands_data[chosen]
 
     def close(self) -> None:
-        self._hands.close()
+        if self._use_tasks:
+            self._landmarker.close()
+        else:
+            self._hands.close()
 
 
 # ══════════════════════════════════════════════════════════════════════════════

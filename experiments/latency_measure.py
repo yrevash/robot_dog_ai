@@ -627,18 +627,48 @@ def main() -> None:
     # ── MediaPipe hands ───────────────────────────────────────────────────────
     hands = None
     if _MP_OK:
+        # Try Tasks API first (mediapipe 0.10+)
         try:
-            hands = mp.solutions.hands.Hands(
-                static_image_mode=False,
-                max_num_hands=1,
-                model_complexity=0,
-                min_detection_confidence=0.55,
+            from mediapipe.tasks import python as _mp_tasks
+            from mediapipe.tasks.python import vision as _mp_vision
+            _model_path = str(models_dir / "hand_landmarker.task")
+            _base = _mp_tasks.BaseOptions(model_asset_path=_model_path)
+            _opts = _mp_vision.HandLandmarkerOptions(
+                base_options=_base,
+                running_mode=_mp_vision.RunningMode.IMAGE,
+                num_hands=1,
+                min_hand_detection_confidence=0.55,
+                min_hand_presence_confidence=0.45,
                 min_tracking_confidence=0.45,
             )
-            log.info("MediaPipe Hands loaded (complexity=0)")
+            _lm = _mp_vision.HandLandmarker.create_from_options(_opts)
+
+            class _TasksHands:
+                """Adapter so TimedPipeline can call hands.process(rgb)."""
+                def process(self, rgb):
+                    mp_img = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+                    r = _lm.detect(mp_img)
+                    r.multi_hand_landmarks = r.hand_landmarks or []
+                    return r
+                def close(self):
+                    _lm.close()
+
+            hands = _TasksHands()
+            log.info("MediaPipe HandLandmarker loaded (Tasks API 0.10+)")
         except Exception as exc:
-            log.warning("MediaPipe Hands init failed: %s — using blur proxy", exc)
-            hands = None
+            log.debug("Tasks API unavailable (%s), trying mp.solutions", exc)
+            try:
+                hands = mp.solutions.hands.Hands(
+                    static_image_mode=False,
+                    max_num_hands=1,
+                    model_complexity=0,
+                    min_detection_confidence=0.55,
+                    min_tracking_confidence=0.45,
+                )
+                log.info("MediaPipe Hands loaded (solutions API 0.9.x)")
+            except Exception as exc2:
+                log.warning("MediaPipe Hands init failed: %s — using blur proxy", exc2)
+                hands = None
     else:
         log.warning("mediapipe not installed — using blur proxy for gesture timing")
 

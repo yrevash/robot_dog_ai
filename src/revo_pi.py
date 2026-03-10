@@ -77,10 +77,10 @@ logging.basicConfig(
 log = logging.getLogger("revo_pi")
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
-BASE_DIR          = Path(__file__).resolve().parent
-KNOWN_FACES_DIR   = BASE_DIR / "known_faces"
+BASE_DIR          = Path(__file__).resolve().parent.parent   # project root
+KNOWN_FACES_DIR   = BASE_DIR / "data" / "known_faces"
 MODELS_DIR        = BASE_DIR / "models"
-DB_FILE           = BASE_DIR / "face_db.npz"
+DB_FILE           = BASE_DIR / "data" / "face_db.npz"
 CONFIG_FILE       = BASE_DIR / "revo_config.json"
 DETECTOR_MODEL    = MODELS_DIR / "face_detection_yunet_2023mar.onnx"
 RECOGNIZER_MODEL  = MODELS_DIR / "face_recognition_sface_2021dec.onnx"
@@ -998,6 +998,9 @@ class PIRuntime:
 def enroll_and_run(name: str, samples: int, cfg: Config) -> None:
     """Capture face images, build DB, then start the runtime."""
     import argparse as _ap
+    _src_dir = str(Path(__file__).resolve().parent)
+    if _src_dir not in sys.path:
+        sys.path.insert(0, _src_dir)
     import face_embedding as fe
 
     log.info("Enrolling '%s' (%d samples) …", name, samples)

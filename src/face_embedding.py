@@ -40,9 +40,10 @@ import cv2
 import numpy as np
 
 
-KNOWN_FACES_DIR = Path("known_faces")
-MODELS_DIR = Path("models")
-DB_FILE = Path("face_db.npz")
+_PROJECT_ROOT   = Path(__file__).resolve().parent.parent
+KNOWN_FACES_DIR = _PROJECT_ROOT / "data" / "known_faces"
+MODELS_DIR      = _PROJECT_ROOT / "models"
+DB_FILE         = _PROJECT_ROOT / "data" / "face_db.npz"
 
 DETECTOR_MODEL = MODELS_DIR / "face_detection_yunet_2023mar.onnx"
 RECOGNIZER_MODEL = MODELS_DIR / "face_recognition_sface_2021dec.onnx"

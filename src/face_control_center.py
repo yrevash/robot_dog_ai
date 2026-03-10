@@ -50,6 +50,7 @@ try:
 except Exception:
     winsound = None
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # ensure src/ is on path
 import face_embedding as fe
 
 
@@ -74,14 +75,14 @@ HAND_LANDMARKER_FILE = "hand_landmarker.task"
 def _runtime_base_dir() -> Path:
     if getattr(sys, "frozen", False):
         return Path(sys.executable).resolve().parent
-    return Path(__file__).resolve().parent
+    return Path(__file__).resolve().parent.parent  # project root (src/ → Revo_Robot_AI/)
 
 
 def _configure_runtime_paths() -> None:
     base = _runtime_base_dir()
-    fe.KNOWN_FACES_DIR = base / "known_faces"
+    fe.KNOWN_FACES_DIR = base / "data" / "known_faces"
     fe.MODELS_DIR = base / "models"
-    fe.DB_FILE = base / "face_db.npz"
+    fe.DB_FILE = base / "data" / "face_db.npz"
 
     external_detector = fe.MODELS_DIR / "face_detection_yunet_2023mar.onnx"
     external_recognizer = fe.MODELS_DIR / "face_recognition_sface_2021dec.onnx"
@@ -1056,8 +1057,6 @@ class FaceControlCenter:
             return chosen_gesture if chosen_gesture else "UNKNOWN"
         else:
             return None
-
-        return None
 
     def _controller_name(self, authorized: Set[str], visible_area_by_name: Dict[str, float]) -> Optional[str]:
         if not authorized:

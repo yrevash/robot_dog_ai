@@ -410,9 +410,9 @@ def _gesture_vote_sweep(frames: List[np.ndarray], log) -> List[Dict]:
             if decided:
                 break
 
-        mean_ms = float(np.mean(gesture_times)) * votes
-        log.info("  gesture_votes=%d  mean_decision_ms=%.2f", votes, mean_ms)
-        sweep_results.append({"votes": votes, "mean_decision_ms": f"{mean_ms:.4f}"})
+        decision_ms = float(sum(gesture_times))   # total wall-clock to reach stable decision
+        log.info("  gesture_votes=%d  mean_decision_ms=%.2f", votes, decision_ms)
+        sweep_results.append({"votes": votes, "mean_decision_ms": f"{decision_ms:.4f}"})
     return sweep_results
 
 

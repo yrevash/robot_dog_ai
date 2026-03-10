@@ -606,8 +606,9 @@ def _load_ground_truth_csv(gt_csv: Path, log) -> Dict[str, str]:
         with open(gt_csv, newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f)
             for row in reader:
-                fn  = row.get("filename") or row.get("path") or row.get("image") or ""
-                lbl = (row.get("label") or row.get("gesture") or "").upper()
+                fn  = (row.get("filename") or row.get("path") or row.get("image")
+                       or row.get("image_path") or "")
+                lbl = (row.get("label") or row.get("gesture") or row.get("class_name") or "").upper()
                 if fn and lbl:
                     mapping[Path(fn).stem] = lbl
         log.info(f"Loaded ground_truth.csv: {len(mapping)} entries")

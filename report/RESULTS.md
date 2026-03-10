@@ -1,9 +1,11 @@
 # REVO Robot Dog — Experiment Results
 
 > **Project:** REVO — Face-Recognition + Gesture-Controlled Robot Dog
-> **Platform tested on:** Apple M3 MacBook (dev machine), 2 enrolled subjects (Yash, Aramaan), 1 impostor set (Harshhini — physically absent)
+> **Platform:** Apple M3 MacBook (development machine). The deployment target is Raspberry Pi 4 — RPi benchmarks are not yet measured (Phase 5 pending hardware access).
+> **Subjects enrolled:** 2 (Yash Tiwari, Aramaan Barve)
+> **Impostor set:** 1 identity (Harshhini — images only, not physically present)
 > **Date:** 2026-03-10
-> **Experiments run:** Phase 2 (Face Recognition), Phase 2.4 (Threshold Sweep), Phase 3 (Voting), Phase 4 (Gesture), Phase 6 (Latency)
+> **Scope:** This is a **proof-of-concept feasibility study** on a small in-house dataset. Results establish that the pipeline is functional and identify design strengths and weaknesses. They do not constitute a full publication-grade validation — see [Section 8: Limitations](#8-limitations-and-honest-caveats) for a complete list before citing any numbers.
 
 ---
 
@@ -16,7 +18,9 @@
 5. [Phase 3 — Temporal Voting Analysis](#5-phase-3--temporal-voting-analysis)
 6. [Phase 4 — Gesture Classification](#6-phase-4--gesture-classification)
 7. [Phase 6 — End-to-End Latency](#7-phase-6--end-to-end-latency)
-8. [Key Findings & Paper Takeaways](#8-key-findings--paper-takeaways)
+8. [Limitations and Honest Caveats](#8-limitations-and-honest-caveats)
+9. [Key Findings](#9-key-findings)
+10. [File Index](#10-file-index)
 
 ---
 
@@ -25,12 +29,12 @@
 REVO is a layered pipeline that converts raw camera frames into robot commands:
 
 ```
-Camera Frame
+Camera Frame  (+5–10 ms USB I/O, not measured here)
     │
-    ▼  ~2.6 ms
+    ▼  ~2.6 ms  [M3 — synthetic frames]
 YuNet ONNX Face Detector  ──────────────────► No face → skip frame
     │
-    ▼  ~0 ms (with DB, ~1–3 ms SFace crop)
+    ▼  ~2–3 ms  [M3 — NOT measured in Phase 6; see §7 caveat]
 SFace ONNX Embedding Extractor  (128-dim, L2-normalised)
     │
     ▼  <0.01 ms
@@ -41,14 +45,16 @@ Two-Gate Identity Matcher
     ▼  <0.01 ms
 Temporal Voter  (6-frame deque, 4-vote threshold)
     │
-    ▼  ~10.7 ms
+    ▼  ~10.7 ms  [M3 — real MediaPipe HandLandmarker]
 MediaPipe HandLandmarker (Tasks API)  ── gesture → robot command
     │
-    ▼  <0.01 ms
+    ▼  ~1–50 ms  [network-dependent, not measured]
 HTTP POST to Robot Dog
 ```
 
-**Total end-to-end pipeline: ~13.3 ms mean → ~75 FPS on Apple M3**
+**Measured processing time (Phase 6, M3, synthetic frames): ~13.3 ms**
+**Estimated with SFace + real frames + camera I/O: ~20–25 ms on M3 (~40–50 FPS)**
+**Estimated on Raspberry Pi 4: ~120–200 ms (~5–8 FPS) — not yet measured**
 
 ---
 
@@ -56,13 +62,15 @@ HTTP POST to Robot Dog
 
 | Item | Detail |
 |------|--------|
-| Enrolled identities | 2 (Yash Tiwari, Aramaan Barve) |
-| Impostor identity | 1 (Harshhini — images only, physically absent) |
-| Face images per person | ~50–100 captured via `face_embedding.py capture` |
-| Embedding DB | `data/face_db.npz` — 128-dim SFace embeddings + per-person centroids |
-| Test set (Phase 2) | 29 samples: 16 enrolled (Yash×8 + Aramaan×8), 13 impostors (Harshhini) |
-| Gesture dataset | 600 images — 10 gesture classes × 30 images × 2 subjects |
+| Enrolled identities (gate eval) | 2 (Yash, Aramaan — 8 test images each = 16 enrolled test samples) |
+| Enrolled identities (threshold sweep) | 3 (Yash 25 + Aramaan 25 + Harshhini 12 = 62; all in DB) |
+| Impostor for gate eval | 1 real subject (Harshhini, 13 images, NOT in DB) |
+| Impostors for threshold sweep | Synthetic transforms of enrolled images (heavy blur/flip/brightness) |
+| Face test set | 29 samples total (16 enrolled + 13 Harshhini impostor) |
+| Gesture dataset | 600 images — 10 classes × 30 images × 2 subjects (balanced, static photos) |
 | Gesture classes | FORWARD, BACKWARD, LEFT, RIGHT, SIT, STAND, WALK, TAIL_WAG, STOP, BARK |
+
+> ⚠ **Gate comparison and threshold sweep used different experimental setups.** Gate comparison used a 2-person DB (Yash + Aramaan) with real Harshhini as impostor. The threshold sweep enrolled all 3 subjects (including Harshhini) into the DB and used synthetic image transforms as impostors. Results from the two experiments are not directly comparable.
 
 ---
 
@@ -73,7 +81,7 @@ HTTP POST to Robot Dog
 
 ### 3.1 Two-Gate Configuration Comparison
 
-Four identity-matching configurations were tested, from simplest to most secure:
+**Setup:** 2-person DB (Yash + Aramaan, enrolled from known_faces/). Test set: 16 enrolled (8 Yash + 8 Aramaan) + 13 real impostors (Harshhini). N = 29.
 
 | Config | Description | TAR | FAR | FRR | ACC |
 |--------|-------------|-----|-----|-----|-----|
@@ -82,28 +90,40 @@ Four identity-matching configurations were tested, from simplest to most secure:
 | **C** | Score + centroid gate (> 0.40) | 1.000 | 0.000 | 0.000 | **1.000** |
 | **D** | Full two-gate (A + B + C) | 1.000 | 0.000 | 0.000 | **1.000** |
 
-> **TAR** = True Accept Rate (enrolled accepted correctly)
-> **FAR** = False Accept Rate (impostor wrongly accepted — security metric)
-> **FRR** = False Reject Rate (enrolled wrongly rejected — usability metric)
-> **ACC** = Overall accuracy
+**95% Wilson confidence intervals (N=29):**
+- TAR = 16/16: [0.806, 1.000] — upper bound is tight, lower bound is wide due to N=16
+- FAR = 0/13: [0.000, 0.228] — FAR could be as high as 22.8% on a larger dataset; zero FAR here does NOT confirm FAR=0 in general
 
-**Key result:** All four configurations achieved perfect 100% accuracy on the 29-sample test set (16 enrolled + 13 Harshhini impostors). The impostor face embeddings were sufficiently far in cosine space from the enrolled faces that even the simple single-gate approach rejected all impostors. This validates the quality of SFace embeddings for this use case.
+> ⚠ **Critical caveat:** All four gates give identical results because the dataset is too easy. The Harshhini impostor embeddings are far below the 0.42 threshold (max impostor score ≈ 0.363), so even the weakest gate rejects all impostors. **This does NOT validate the two-gate design** — it only confirms the system functions on this particular small sample. Validation of the margin and centroid gates requires a larger DB (≥10 subjects) where ambiguous near-threshold cases occur. N=29 with 2 enrolled subjects is insufficient for publication-grade validation.
 
 ![Gate Comparison Bar Chart](phase2/gate_comparison_bar.png)
 
-### 3.2 Lighting Normalization Ablation
+### 3.2 Score Separation Analysis
 
-The pipeline applies CLAHE + adaptive gamma correction before embedding. Only one lighting condition (L0 = natural) was tested in this run since synthetic transforms (blur, flip, brightness) failed face detection — confirming that extreme degradation is correctly rejected at the detector level rather than the matcher.
+The key reason for perfect accuracy: the enrolled-vs-impostor score distributions are well separated.
+
+- Minimum enrolled similarity (Yash/Aramaan): **0.661**
+- Maximum impostor similarity (Harshhini): **0.363**
+- Score gap: **0.297** — comfortably above the 0.42 threshold
+
+This gap is specific to the Harshhini impostor and may not generalise to visually similar impostors (e.g., siblings, or subjects with similar facial structure).
+
+### 3.3 Lighting Ablation
+
+Only one lighting condition (L0 = natural indoor) was evaluable. Synthetic transforms (blur, brightness shift, flip) caused YuNet to fail face detection on all images — meaning the evaluation was limited to unmodified images only.
 
 | Lighting | Correct | Total | ACC |
 |----------|---------|-------|-----|
 | L0 (natural) | 29 | 29 | 1.000 |
+| L1–L4 (synthetic) | — | — | YuNet detection failed (0 faces detected) |
+
+> ⚠ **Limitation:** The system's robustness to non-ideal lighting is unknown. Synthetic transforms failing detection does not confirm robustness — it means extreme degradation was untested. Real-world lighting variation (office fluorescents, backlighting, night) must be measured separately.
 
 ![Lighting Ablation](phase2/lighting_ablation_bar.png)
 
-### 3.3 LBPH Baseline
+### 3.4 LBPH Baseline
 
-The OpenCV LBPH (Local Binary Pattern Histogram) legacy recognizer was attempted as a baseline comparator. It could not be evaluated on SFace embeddings (different feature space) — this comparison requires a separate LBPH training pipeline. The slot is reserved for future work.
+The LBPH (Local Binary Pattern Histogram) baseline comparison was attempted but could not be evaluated. LBPH requires training from raw images in a separate pipeline from SFace; the connection was not completed. The `lbph_comparison.csv` is empty. This is a known gap — a baseline comparison (LBPH, or alternatively dlib, ArcFace, or FaceNet embeddings) is required before this can be presented as a comparative study.
 
 ---
 
@@ -112,40 +132,34 @@ The OpenCV LBPH (Local Binary Pattern Histogram) legacy recognizer was attempted
 **Script:** `experiments/sweep_threshold.py`
 **Output folder:** `results/phase2/`
 
+> ⚠ **Different setup from §3.1:** The threshold sweep enrolled ALL 3 subjects (Yash, Aramaan, and Harshhini) into the DB and used synthetic image transforms (heavy blur, flip, extreme brightness) as impostors — NOT real Harshhini images as in the gate comparison. Synthetic impostors are weaker adversaries; real faces from unknown subjects would probe a harder operating point. This also means Harshhini counts as an enrolled identity here, which is the reverse of §3.1.
+
 ### 4.1 Cosine Threshold Sweep (0.20 → 0.70)
 
-The primary cosine similarity threshold controls the strictness of identity matching. Too low → accepts impostors (high FAR). Too high → rejects enrolled faces (high FRR).
+N_enrolled = 62 (25 Yash + 25 Aramaan + 12 Harshhini, 1 image failed detection). Synthetic impostors only.
 
-| Threshold | FAR | FRR | TAR |
-|-----------|-----|-----|-----|
-| 0.20 – 0.30 | 0.000 | 0.000 | 1.000 |
-| 0.32 – 0.46 | 0.000 | 0.016 | 0.984 |
-| 0.48 – 0.50 | 0.000 | 0.032 | 0.968 |
-| 0.52 | 0.000 | 0.048 | 0.952 |
-| 0.60 | 0.000 | 0.097 | 0.903 |
-| 0.70 | 0.000 | 0.145 | 0.855 |
+| Threshold | FAR | FRR | TAR | Notes |
+|-----------|-----|-----|-----|-------|
+| 0.20 – 0.30 | 0.000 | 0.000 | 1.000 | All enrolled accepted, all synthetic impostors rejected |
+| 0.32 – 0.46 | 0.000 | 0.016 (1/62) | 0.984 | One enrolled image misses threshold |
+| 0.48 – 0.50 | 0.000 | 0.032 | 0.968 | |
+| 0.60 | 0.000 | 0.097 | 0.903 | |
+| 0.70 | 0.000 | 0.145 | 0.855 | |
 
-**Key findings:**
-- FAR = 0.000 across the entire threshold range (0.20–0.70) — the Harshhini impostor embeddings are cleanly separated from Yash and Aramaan in cosine space
-- The **EER (Equal Error Rate) does not occur** in this dataset — FAR never rises above 0 while FRR is minimised at thresholds ≤ 0.30
-- The production default (0.42) keeps FRR at 0.016 (1 sample misclassified from 62), well within acceptable range
-- Above threshold 0.50, FRR climbs rapidly — confirms 0.42 is near-optimal
+**FAR = 0.000 across all thresholds with synthetic impostors.** This is expected: synthetic transforms (heavy Gaussian blur + extreme brightness + flip) produce embeddings far below any meaningful threshold. **This does not indicate the system is robust against real impostor faces.** The EER (Equal Error Rate) is undefined on this dataset because FAR never rises.
 
-![ROC Curve / Threshold Sweep](phase2/roc_curve.png)
-![Threshold Sweep](phase2/threshold_sweep.png)
+The production default threshold (0.42) achieves TAR = 0.984 (95% CI: [0.914, 0.997]) on this setup.
+
+![ROC / Threshold Sweep](phase2/roc_curve.png)
+![Threshold Sweep Line Chart](phase2/threshold_sweep.png)
 
 ### 4.2 Margin Sweep (at threshold = 0.42)
 
-The margin gate rejects an identity if the best match score does not exceed the second-best by at least `margin`. This prevents accepting a face when two enrolled identities score similarly.
-
 | Margin | FAR | FRR | TAR |
 |--------|-----|-----|-----|
-| 0.00 | 0.000 | 0.016 | 0.984 |
-| 0.03 | 0.000 | 0.016 | 0.984 |
-| 0.06 | 0.000 | 0.016 | 0.984 |
-| 0.09 | 0.000 | 0.016 | 0.984 |
+| 0.00 – 0.09 | 0.000 | 0.016 | 0.984 (all identical) |
 
-**Key finding:** Margin has no impact at these tested values — the top match consistently dominates the second by a wide margin in a 2-person DB, confirming robust separation.
+No variation across margins. With only 3 enrolled subjects the top-match score dominates second-best by a large gap, so the margin gate is never triggered. **Margin gate validation requires ≥10 enrolled subjects** to create near-threshold ambiguous cases.
 
 ---
 
@@ -154,42 +168,38 @@ The margin gate rejects an identity if the best match score does not exceed the 
 **Script:** `experiments/sweep_voting.py`
 **Output folder:** `results/phase3/`
 
-The temporal voter maintains a sliding deque of the last N frames' identity predictions and requires a minimum of `stable_count` votes for the same identity before granting authorization. This prevents single-frame spoofing attacks.
-
 ### 5.1 Voting Grid: History Length × Stable Count
 
-| history_len | stable_count | Authorization Latency | Security (blocks impostor) |
-|-------------|-------------|----------------------|---------------------------|
-| 3 | 2 | 3 frames (0.10 s) | ✓ |
-| 3 | 3 | 3 frames (0.10 s) | ✓ |
-| 3 | 4–5 | Never authorizes | ✓ |
-| 4 | 2–4 | 4 frames (0.13 s) | ✓ |
-| 5 | 2–5 | 5 frames (0.17 s) | ✓ |
-| **6** | **2–5** | **6 frames (0.20 s)** | **✓** |
-| 8 | 2–5 | 8 frames (0.27 s) | ✓ |
-| 10 | 2–5 | 10 frames (0.33 s) | ✓ |
+Voting was simulated using real-time inference on enrolled images from `known_faces/` (not pre-computed Phase 2 results). The impostor test used a stream of pure-Unknown predictions (conservative lower bound). All configurations blocked the impostor because the embedding-level FAR was already 0; the voting analysis measures authorization latency only.
 
-> All configurations blocked the impostor (FAR = 0 at embedding level).
-> "Never authorizes" = `stable_count > history_len` — logically impossible, always a fail.
+| history_len | stable_count | Authorization Latency | Notes |
+|-------------|-------------|----------------------|-------|
+| 3 | 2 | 3 frames (0.10 s @30fps) | |
+| 3 | 3 | 3 frames (0.10 s) | |
+| 3 | 4–5 | ∅ impossible | stable_count > history_len is logically invalid |
+| 4 | 2–4 | 4 frames (0.13 s) | |
+| **6** | **4** | **6 frames (0.20 s)** | **Production setting** |
+| 8 | 2–5 | 8 frames (0.27 s) | |
+| 10 | 2–5 | 10 frames (0.33 s) | |
 
-![Voting Latency Heatmap](phase3/voting_heatmap_latency.png)
-![Voting Security Heatmap](phase3/voting_heatmap_security.png)
+> All latencies assume 30 FPS. Actual latency = frame_count / actual_fps. On RPi with frame_skip=2 (~20 fps effective), production latency ≈ 6/20 = **300 ms**, not 200 ms.
 
-**Production setting:** history_len=6, stable_count=4 → authorization in 6 frames (~200 ms at 30 FPS). Balances responsiveness with anti-spoofing.
+> Configurations where stable_count > history_len are logically impossible (can never accumulate enough votes) and are excluded from the valid design space.
+
+![Latency Heatmap](phase3/voting_heatmap_latency.png)
+![Security Heatmap](phase3/voting_heatmap_security.png)
+
+**Production setting:** history_len=6, stable_count=4 → authorization in ~200 ms at 30 FPS.
 
 ### 5.2 Frame Skip Sweep
 
-Frame skipping reduces CPU load by running inference only every N frames:
+| Frame Skip | Effective Auth Latency | Notes |
+|-----------|----------------------|-------|
+| 1 | 0.20 s | Full inference every frame |
+| 2 | 0.40 s | Half inference rate; 50% CPU savings |
+| 3–5 | N/A | Simulation artifact: 16-frame test insufficient to fill 6-frame deque at skip≥3. In a live continuous stream these would work and give ~0.6–1.0 s latency. |
 
-| Frame Skip | Effective Latency |
-|-----------|-------------------|
-| 1 (no skip) | 0.20 s |
-| 2 | 0.40 s |
-| 3+ | Never (simulation artifact: only 16 test frames insufficient to fill 6-frame history with skip≥3) |
-
-![Frame Skip Bar Chart](phase3/frame_skip_bar.png)
-
-**Note:** Skip ≥ 3 would work in a live deployment (continuous stream), but the 16-frame simulation doesn't produce enough matching frames to fill the deque. In deployment, frame skip = 2 is recommended for RPi (0.40 s auth latency vs 0.20 s, 50% CPU savings).
+![Frame Skip](phase3/frame_skip_bar.png)
 
 ---
 
@@ -200,182 +210,232 @@ Frame skipping reduces CPU load by running inference only every N frames:
 
 ### 6.1 Dataset
 
-- **600 images** total: 10 gesture classes × 30 images × 2 subjects (Yash + Aramaan)
-- Collected using `experiments/collect_gesture_dataset.py` with live camera guidance
-- MediaPipe HandLandmarker (Tasks API) used for hand detection in all modes
+- 600 **static images**: 10 classes × 30 images × 2 subjects (Yash + Aramaan)
+- Collected under similar indoor conditions but on separate days per subject
+- Labels derived from folder structure (no separate ground-truth CSV)
+- **Static images do not replicate live video conditions** (no motion blur, no temporal jitter, no occlusion); production performance on video may differ
 
-### 6.2 Rule-Based Classifier Results
+### 6.2 Rule-Based Classifier — Full 10-Gesture Results
 
-The production rule-based gesture classifier (geometric rules on 21 MediaPipe hand landmarks) was evaluated against all 600 images:
-
-**Overall: Accuracy = 65.33%, Macro F1 = 0.673**
+**Overall: Accuracy = 65.33% (392/600), 95% CI: [61.4%, 69.0%], Macro F1 = 0.673**
 
 | Gesture | Precision | Recall | F1 | Notes |
 |---------|-----------|--------|----|-------|
-| FORWARD | 0.556 | 0.500 | 0.526 | Confused with WALK (4-finger spread) |
-| BACKWARD | **1.000** | **1.000** | **1.000** | Thumb-down fist — very distinctive |
-| LEFT | 0.000 | 0.000 | 0.000 | ⚠ Classifier cannot distinguish from RIGHT |
-| RIGHT | 0.000 | 0.000 | 0.000 | ⚠ Classifier cannot distinguish from LEFT |
-| SIT | **1.000** | **1.000** | **1.000** | 2-finger V-sign — highly reliable |
-| STAND | **1.000** | **1.000** | **1.000** | 3-finger sign — highly reliable |
-| WALK | 0.545 | 0.600 | 0.571 | Confused with FORWARD |
-| TAIL_WAG | **1.000** | 0.500 | 0.667 | Pinky-only sign — missed ~50% of images |
-| STOP | **1.000** | **1.000** | **1.000** | Full fist — perfectly reliable |
-| BARK | **1.000** | 0.933 | 0.966 | Pinch sign — near-perfect |
+| FORWARD | 0.556 | 0.500 | 0.526 | Subject-specific: Yash 100%, Aramaan 0% |
+| BACKWARD | 1.000 | 1.000 | **1.000** | Thumb-down fist — robust |
+| **LEFT** | **0.000** | **0.000** | **0.000** | ⚠ Completely non-functional — all 60 misclassified |
+| **RIGHT** | **0.000** | **0.000** | **0.000** | ⚠ Completely non-functional — all 60 misclassified |
+| SIT | 1.000 | 1.000 | **1.000** | V-sign — highly reliable |
+| STAND | 1.000 | 1.000 | **1.000** | 3-finger — highly reliable |
+| WALK | 0.545 | 0.600 | 0.571 | Subject-specific: Yash 100%, Aramaan ~20% |
+| TAIL_WAG | 1.000 | 0.500 | 0.667 | Subject-specific: Aramaan 100%, Yash 0% |
+| STOP | 1.000 | 1.000 | **1.000** | Full fist — perfectly reliable |
+| BARK | 1.000 | 0.933 | 0.966 | Pinch sign — near-perfect |
+
+> ⚠ **LEFT and RIGHT are completely non-functional (0% recall for both subjects).** The current rule (index-finger x-axis lean) is insufficient for static frontal images. These two commands cannot be deployed as-is. The system effectively operates on 8 gestures.
+
+> ⚠ **Strong per-subject asymmetry detected.** FORWARD, WALK, and TAIL_WAG show opposite performance between subjects (one subject 100%, the other 0%). This indicates the geometric rules are tuned to one user's hand geometry and do not generalise across individuals. Redesigning rules to use relative angles (hand-size-normalised) is required before multi-user deployment.
+
+**8-Gesture subset (excluding LEFT/RIGHT): Accuracy = 81.7% (392/480), 95% CI: [78.0%, 84.9%]**
+
+This is the honest deployable accuracy of the current system.
 
 ![Confusion Matrix](phase4/gesture_confusion_matrix.png)
 ![Per-Class F1 Bar Chart](phase4/gesture_per_class_bar.png)
 
-**Analysis:**
-- **LEFT/RIGHT failure:** The current rule uses index-finger X-axis lean (`lmk[8].x - lmk[6].x`). When images are collected straight-on from camera, the sign is too subtle for the threshold. Needs either a tighter gesture protocol or an angle-based approach.
-- **FORWARD/WALK confusion:** Both are open-hand variants — FORWARD is all 5 open, WALK is 4 fingers (thumb folded). The boundary is ambiguous when thumb is partially extended.
-- **TAIL_WAG 50% recall:** Pinky-only sign requires all other fingers fully closed; in static images, partial closure sometimes passes.
-
 ### 6.3 ML Comparison (Rule-Based vs SVM / Random Forest / KNN)
 
-Feature: 42-float vector (x, y for each of 21 MediaPipe hand landmarks).
+Feature vector: 42 floats (x, y for 21 MediaPipe hand landmarks, normalised to image size).
 
-| Method | Closed-Set Accuracy | Macro F1 | Cross-Subject Accuracy |
-|--------|--------------------|-----------|-----------------------|
-| Rule-based | 0.653 | 0.673 | N/A (no training) |
-| SVM (RBF, C=10) | **1.000** | **1.000** | 0.450 |
-| Random Forest | **1.000** | **1.000** | 0.403 |
-| KNN (k=5) | **1.000** | **1.000** | 0.450 |
+| Method | Closed-Set Acc (5-fold CV) | LOSO Cross-Subject Acc | Meaningful? |
+|--------|---------------------------|----------------------|-------------|
+| Rule-based | 0.653 | Not trained (N/A) | Yes — primary result |
+| SVM (RBF, C=10) | **1.000** | 0.450 | Closed-set is misleading |
+| Random Forest | **1.000** | 0.403 | Closed-set is misleading |
+| KNN (k=5) | **1.000** | 0.450 | Closed-set is misleading |
+
+> ⚠ **100% closed-set accuracy is an artefact of subject-specific overfitting, NOT a valid result.** All 600 images come from only 2 subjects. 5-fold CV never places train and test images from different subjects, so models learn each person's individual hand proportions (size, aspect ratio, joint angles). Leave-One-Subject-Out (LOSO) accuracy drops to 40–45% — just 4× above the 10% random baseline for 10 classes. The rule-based classifier, which requires no training, is more robust to unseen users.
+
+> **Cross-subject accuracy (LOSO) is the meaningful metric for multi-user deployment.** On this basis, ML methods perform no better than chance on a new user, while the rule-based approach at 65.3% (or 81.7% on 8 gestures) is subject-agnostic.
 
 ![ML Comparison Bar Chart](phase4/ml_comparison_bar.png)
-
-**Key insight:** All ML methods achieve 100% closed-set accuracy via 5-fold CV — this is *overfitting to subject-specific landmark style*, not generalisation. Cross-subject (Leave-One-Subject-Out) accuracy drops to 40–45%, slightly worse than the rule-based classifier which never trained on subject data. This strongly argues that for a real-world 2-person deployment, the **rule-based classifier is preferable** — it requires no training data, has zero deployment overhead, and generalises better.
 
 ---
 
 ## 7. Phase 6 — End-to-End Latency
 
 **Script:** `experiments/latency_measure.py`
+**Hardware:** Apple M3 MacBook — **not representative of RPi 4 (5–10× slower)**
 **Output folder:** `results/phase6/`
-**Hardware:** Apple M3 MacBook (synthetic frames, no camera I/O)
 
-### 7.1 Per-Component Timing (100 frames)
+### 7.1 Per-Component Timing
 
-| Component | Mean (ms) | Median (ms) | p95 (ms) | p99 (ms) |
-|-----------|-----------|-------------|----------|----------|
-| Face Detect (YuNet ONNX) | 2.59 | 2.45 | 3.00 | 3.33 |
-| Embed (SFace ONNX) | 0.00* | 0.00* | 0.00* | 0.00* |
-| Identity Match (dot product) | 0.0002 | 0.0002 | 0.0003 | 0.0006 |
-| Temporal Vote | 0.003 | 0.003 | 0.005 | 0.008 |
-| Gesture (HandLandmarker) | **10.70** | 11.13 | 11.93 | 12.31 |
-| HTTP Dispatch | 0.00† | 0.00† | 0.00† | 0.00† |
-| **Total Pipeline** | **13.32** | **13.64** | **14.70** | **15.39** |
+> ⚠ **Major caveats before reading this table:**
+> 1. **Synthetic frames:** Timing was measured on random-noise images, not real camera frames. Real frames with natural faces may differ by ±15–30%.
+> 2. **SFace embedding not measured (t_embed_ms = 0.000):** `face_db.npz` was absent during this run, so the SFace AlignCrop + feature extraction step was skipped. This is the second most expensive operation. Estimated real cost: ~2–3 ms on M3, ~80–120 ms on RPi 4.
+> 3. **Camera I/O not included:** `cv2.VideoCapture.read()` adds ~5–10 ms per frame (USB webcam) not measured here.
+> 4. **HTTP not measured:** No mock server was running; HTTP latency is 0 ms in this test. Real LAN latency: 5–20 ms.
 
-> \* SFace embedding not loaded (face_db.npz absent in this run) — proxy used, real cost ~1–3 ms
-> † HTTP measured separately with mock server (non-blocking thread, < 0.01 ms main thread overhead)
+| Component | Mean (ms) | Median (ms) | p95 (ms) | Measured? |
+|-----------|-----------|-------------|----------|-----------|
+| Camera I/O | — | — | — | ✗ Not measured |
+| Face Detect (YuNet) | 2.59 | 2.45 | 3.00 | ✓ (synthetic frames) |
+| **SFace Embed** | **0.00** | **0.00** | **0.00** | **✗ Skipped — face_db absent** |
+| Identity Match | 0.0002 | 0.0002 | 0.0003 | ✓ |
+| Temporal Vote | 0.003 | 0.003 | 0.005 | ✓ |
+| Gesture (HandLandmarker) | 10.70 | 11.13 | 11.93 | ✓ (real MediaPipe, synthetic ROI) |
+| HTTP Dispatch | 0.00 | 0.00 | 0.00 | ✗ Not measured |
+| **Total (measured)** | **13.32** | **13.64** | **14.70** | partial |
 
-**Effective throughput: ~75 FPS on M3** (total pipeline 13.3 ms mean)
+**More realistic M3 estimate (including missing steps):**
+- Add SFace ~2.5 ms + camera I/O ~8 ms = **~24 ms → ~42 FPS on M3**
+
+**Raspberry Pi 4 estimate (not measured — requires hardware):**
+- YuNet: ~13–26 ms | SFace: ~80–120 ms | Gesture: ~50–100 ms | Camera I/O: ~3–5 ms
+- **Estimated total: ~150–250 ms → ~4–7 FPS on RPi 4**
+
+This makes frame_skip=2 on RPi critical: running inference every 2nd frame doubles effective FPS to ~8–14 FPS.
 
 ![Latency Breakdown](phase6/latency_breakdown.png)
 ![Latency CDF](phase6/latency_cdf.png)
 
-### 7.2 Bottleneck Analysis
+### 7.2 Bottleneck (Measured Components Only)
 
 ```
-Gesture (MediaPipe HandLandmarker)  80.3%  ████████████████████████████████████████
+Gesture (MediaPipe HandLandmarker)  80.3%  ████████████████████████
 Face Detect (YuNet)                 19.5%  ████████
 Identity Match + Vote               < 0.1%
-HTTP Dispatch                       < 0.1%
 ```
 
-**Gesture inference is the dominant cost at ~10.7 ms.** On Raspberry Pi (ARM Cortex-A72 ~5–10× slower), the gesture step will dominate at ~50–100 ms — hence the RPi optimisations in `revo_pi.py` (gesture ROI crop, complexity=0 lite model, face-position cache to skip re-detection).
+Gesture is dominant even in the measured-only view. With SFace added it would be ~68% gesture / ~17% detect / ~10% embed.
 
 ### 7.3 Gesture Vote Decision Latency
 
-How quickly does the vote stabilise once valid gestures start arriving:
+> Note: This sweep uses a Gaussian-blur proxy for gesture timing (not actual MediaPipe), so values represent the vote-accumulation overhead only, not the full gesture pipeline cost. With real MediaPipe inference, each vote costs ~10.7 ms, so decision latency scales linearly: votes × 10.7 ms.
 
-| Votes Required | Mean Decision (ms) |
-|---------------|-------------------|
-| 1 | 1.69 |
-| 2 | 0.31 |
-| 3 | 0.17 |
-| 4 | 0.25 |
-
-> These are vote-accumulation times only (not full pipeline). Higher votes = more stable but same order-of-magnitude.
+| Votes Required | Proxy Decision (ms) | Real MediaPipe Estimate (ms) |
+|---------------|--------------------|-----------------------------|
+| 1 | 1.73 | ~10.7 |
+| 2 | 0.12 | ~21.4 |
+| 3 | 0.16 | ~32.1 |
+| 4 | 0.20 | ~42.8 |
 
 ![Gesture Vote Sweep](phase6/gesture_vote_sweep.png)
 
 ---
 
-## 8. Key Findings & Paper Takeaways
+## 8. Limitations and Honest Caveats
 
-### Finding 1 — SFace Embeddings Provide Clean Identity Separation
-The cosine similarity distribution of SFace 128-dim embeddings showed zero FAR across the entire threshold range 0.20–0.70 against the Harshhini impostor set. The production threshold (0.42) achieves TAR=0.984 with FRR=0.016 (one missed detection at a tight threshold), confirming strong discriminability.
+The following limitations must be acknowledged before any publication or deployment use of these results:
 
-### Finding 2 — Two-Gate Matching Adds Robustness Without Cost
-All four gate configurations (A through D) achieved identical 100% accuracy in this test. This confirms the centroid and margin gates are complementary security layers that add zero latency overhead (<0.01 ms) while protecting against near-threshold ambiguity cases that only arise with larger user databases.
+### 8.1 Dataset Size — Does Not Meet IEEE Standards
+- **Face recognition:** N=29 test samples, 2 enrolled subjects, 1 impostor identity. IEEE biometric papers typically require ≥50 subjects, ≥500 test images, ≥10 impostor identities. Current results are suitable only for a proof-of-concept / feasibility demonstration.
+- **Gesture recognition:** 600 images from 2 subjects. Minimum for a generalisation claim: ≥8–10 subjects. Current LOSO analysis (2-fold) has no statistical power.
 
-### Finding 3 — Temporal Voting Provides Spoofing Resilience
-The (history=6, stable=4) production setting authorises an enrolled face in ~200 ms while rejecting every single-frame impostor attempt. Increasing history length beyond 8 frames adds >33% latency with no security improvement (FAR was already 0).
+### 8.2 LEFT/RIGHT Gestures Are Broken
+The directional gesture commands (LEFT, RIGHT) have 0% recall for both subjects. They cannot be deployed in the current system. Either redesign the geometric rules (e.g., wrist-roll or sideways palm orientation) or remove these commands from the published system description.
 
-### Finding 4 — Rule-Based Gesture Classifier Outperforms ML for Cross-Subject Use
-Despite only 65.3% closed-set accuracy, the rule-based classifier has **better cross-subject generalisability** than SVM/RF/KNN (which collapse to 40–45% LOSO accuracy from their apparent 100% closed-set). For a deployment with unknown users, rule-based is the right choice — no training required, zero inference overhead beyond landmark extraction, interpretable failure modes.
+### 8.3 No Liveness Detection
+The system has no anti-spoofing / liveness detection. A printed photograph of an enrolled person held in front of the camera will be accepted. This is a known limitation and must be stated explicitly in any publication.
 
-### Finding 5 — LEFT/RIGHT Gestures Need Redesign
-The two direction commands achieve 0% F1 with the current geometric rule. Recommended fix: replace the simple `lmk[8].x - lmk[6].x` lean test with a wrist-roll angle or require the palm to be turned sideways (different orientation gate).
+### 8.4 Synthetic Impostors Are Weak Adversaries
+The threshold sweep used blurred/flipped/brightness-shifted versions of enrolled images as impostors. These produce embeddings far below any reasonable threshold. Real-world impostors (unknown faces, similar-looking individuals, morphed images) are not tested.
 
-### Finding 6 — Gesture is the Dominant Latency Component
-MediaPipe HandLandmarker accounts for 80% of per-frame pipeline time (~10.7 ms on M3). On RPi, this will be the primary bottleneck. Optimisations implemented: gesture ROI crop (~50% area reduction), lite model (complexity=0), and only running gesture inference on authorized frames.
+### 8.5 SFace Embedding Not Measured in Latency
+The most computationally expensive per-frame step (SFace AlignCrop + inference, ~2–3 ms on M3, ~80–120 ms on RPi) was omitted from Phase 6 measurements. Headline FPS figures are overestimates.
 
-### Finding 7 — System Achieves Real-Time Performance on Desktop
-End-to-end pipeline completes in **13.3 ms mean** (~75 FPS) on Apple M3 without any hardware acceleration. With the RPi optimisations (dual-res, cache, frame skip=2), the target is ≥15 FPS at 640×480 on RPi 4.
+### 8.6 Static Images ≠ Live Video
+Gesture evaluation used static, carefully posed photos. Production runs on video frames with motion blur, occlusion, lighting variation, and temporal jitter. Performance on live video may be lower than the static-image numbers.
+
+### 8.7 Mac Measurements Do Not Predict RPi Performance
+All Phase 6 timings are on Apple M3 (8-core, ~4 GHz). The deployment target is Raspberry Pi 4 (4-core Cortex-A72, 1.5 GHz, no GPU). Estimated 5–10× slowdown; RPi benchmarks require physical hardware (Phase 5 — not yet run).
+
+### 8.8 Gate Comparison and Threshold Sweep Used Different Setups
+Phase 2 (gate comparison) used a 2-person DB with real Harshhini as impostor. Phase 2.4 (threshold sweep) used a 3-person DB (Harshhini enrolled) with synthetic impostors. These results are not comparable to each other.
+
+### 8.9 No Confidence Intervals Reported in Previous Versions
+With N=29 for face and N=600 (2 subjects) for gesture, all metrics have wide confidence intervals. Key 95% CIs:
+- Face TAR 16/16 = 1.000 (CI: 0.806–1.000)
+- Face FAR 0/13 = 0.000 (CI: 0.000–0.228) ← FAR could be as high as 22.8% at scale
+- Gesture ACC 392/600 = 65.3% (CI: 61.4%–69.0%)
+- Gesture 8-class ACC 392/480 = 81.7% (CI: 78.0%–84.9%)
+
+### 8.10 LBPH Baseline Missing
+No baseline comparison was completed. Before claiming superiority of SFace, a comparison against LBPH, dlib, or another standard method is required.
 
 ---
 
-## File Index
+## 9. Key Findings
+
+### Finding 1 — SFace Provides Adequate Embedding Separation for 2-Subject Scenario
+On the tested dataset (2 enrolled, 1 real impostor), cosine similarity scores are well separated: minimum enrolled score 0.661 vs maximum impostor score 0.363, a gap of 0.297. The production threshold (0.42) sits in the middle of this gap. **Caveat:** This separation is specific to this subject combination; it does not guarantee FAR=0 with visually similar impostors or a larger identity pool.
+
+### Finding 2 — Two-Gate Design Adds Zero Latency Overhead But Is Not Yet Validated
+Match + vote combined cost <0.01 ms regardless of gate configuration. The multi-gate design is computationally free. **However, all gates gave identical results on this dataset because it is too easy.** Validation of the centroid and margin gates requires ≥10 enrolled identities to generate near-threshold ambiguity.
+
+### Finding 3 — Temporal Voting Balances Responsiveness and Security
+Production setting (history=6, stable=4) authorises in ~200 ms at 30 FPS, ~300 ms at 20 FPS (RPi effective). No impostor was authorised at any vote configuration, but this reflects the embedding-level FAR=0 rather than the voting logic itself being tested.
+
+### Finding 4 — Rule-Based Gesture is the Correct Choice for Multi-User Deployment
+ML methods (SVM/RF/KNN) achieve 100% closed-set accuracy but collapse to 40–45% LOSO cross-subject — barely above the 10% random baseline. The rule-based classifier, requiring no training, achieves 65.3% on 10 gestures (81.7% on the 8 functional gestures) and is subject-agnostic. **For any deployment with users beyond the training set, rule-based is the only viable option with current data.**
+
+### Finding 5 — LEFT/RIGHT Gesture Commands Require Redesign
+The index-finger x-axis lean rule fails completely for frontal static images. Both commands must be redesigned before the system can be deployed with directional control.
+
+### Finding 6 — Gesture Inference is the Primary Latency Bottleneck
+MediaPipe HandLandmarker accounts for ~80% of measured processing time (~10.7 ms on M3). On RPi, estimated 50–100 ms, making frame_skip=2 and gesture ROI cropping essential optimisations.
+
+### Finding 7 — RPi Performance Is Unvalidated
+Phase 5 benchmarks require physical Raspberry Pi hardware. All RPi figures in this report are estimates based on known ARM vs M3 scaling factors. Do not cite RPi numbers until Phase 5 is run.
+
+---
+
+## 10. File Index
 
 ```
 results/
-├── RESULTS.md                          ← This file
+├── RESULTS.md                           ← This file
 │
-├── phase2/                             ← Face recognition accuracy
-│   ├── gate_comparison.csv             Raw metrics per gate config
-│   ├── gate_comparison_bar.png         Bar chart: TAR/FAR/FRR per config
-│   ├── lighting_ablation.csv           Accuracy under lighting variants
-│   ├── lighting_ablation_bar.png       Bar chart: lighting conditions
-│   ├── lbph_comparison.csv             LBPH baseline (placeholder)
-│   ├── margin_sweep.csv                FAR/FRR vs margin threshold
-│   ├── recognition_results.csv         Per-sample predictions
-│   ├── roc_curve.png                   ROC curve (FAR vs TAR)
-│   ├── roc_data.csv                    ROC data points
-│   └── threshold_sweep.png             FAR/FRR vs cosine threshold
+├── phase2/                              ← Face recognition accuracy
+│   ├── gate_comparison.csv              2-person DB, 4 gate configs, N=29
+│   ├── gate_comparison_bar.png
+│   ├── lighting_ablation.csv            L0 only; L1–L4 failed detection
+│   ├── lighting_ablation_bar.png
+│   ├── lbph_comparison.csv              EMPTY — baseline not completed
+│   ├── margin_sweep.csv                 Margin sweep (3-person DB, synthetic impostors)
+│   ├── recognition_results.csv          Per-sample predictions (4 configs × 29 samples)
+│   ├── roc_curve.png
+│   ├── roc_data.csv                     Threshold sweep (3-person DB, N_enrolled=62)
+│   └── threshold_sweep.png
 │
-├── phase3/                             ← Temporal voting analysis
-│   ├── frame_skip_bar.png              Latency vs frame skip
-│   ├── frame_skip_sweep.csv            Frame skip sweep raw data
-│   ├── voting_heatmap_latency.png      Heatmap: history × stable → latency
-│   ├── voting_heatmap_security.png     Heatmap: history × stable → impostor block
-│   └── voting_sweep.csv               Full voting grid raw data
+├── phase3/                              ← Temporal voting
+│   ├── frame_skip_bar.png
+│   ├── frame_skip_sweep.csv
+│   ├── voting_heatmap_latency.png
+│   ├── voting_heatmap_security.png
+│   └── voting_sweep.csv
 │
-├── phase4/                             ← Gesture classification
-│   ├── gesture_confusion_matrix.png    10×10 confusion matrix
-│   ├── gesture_per_class_bar.png       Per-class precision/recall/F1
-│   ├── gesture_per_class_metrics.csv   Numeric per-class metrics
+├── phase4/                              ← Gesture classification
+│   ├── gesture_confusion_matrix.png     10×10 matrix (includes broken LEFT/RIGHT)
+│   ├── gesture_per_class_bar.png
+│   ├── gesture_per_class_metrics.csv    Full 10-gesture results
 │   ├── gesture_results.csv             Per-sample predictions
-│   ├── ml_comparison.csv              Rule-based vs SVM/RF/KNN
-│   └── ml_comparison_bar.png          Accuracy/F1 comparison bar chart
+│   ├── ml_comparison.csv               LOSO cross-subject is the meaningful metric
+│   └── ml_comparison_bar.png
 │
-├── phase6/                             ← End-to-end latency
-│   ├── latency_breakdown.png           Bar chart: per-component mean
-│   ├── latency_cdf.png                 CDF of total pipeline latency
-│   ├── latency_raw.csv                 100-frame per-sample timing data
-│   ├── latency_summary.csv            Mean/median/p95/p99 summary
-│   ├── gesture_vote_sweep.csv         Vote count vs decision latency
-│   └── gesture_vote_sweep.png         Vote count bar chart
+├── phase6/                              ← Latency (M3, synthetic frames, SFace missing)
+│   ├── latency_breakdown.png
+│   ├── latency_cdf.png
+│   ├── latency_raw.csv
+│   ├── latency_summary.csv
+│   ├── gesture_vote_sweep.csv          Proxy-based sweep; see §7.3 for real estimates
+│   └── gesture_vote_sweep.png
 │
-└── logs/                               ← Full run logs (timestamped)
-    ├── phase2_face_recognition_*.log
-    ├── phase2_threshold_sweep_*.log
-    ├── phase3_voting_sweep_*.log
-    ├── phase4_gesture_*.log
-    └── phase6_latency_*.log
+└── logs/                                ← Full timestamped run logs
+    └── phase{2,3,4,6}_*.log
 ```
 
 ---
 
-*Generated from experiment scripts in `experiments/`. Re-run any phase with `python experiments/<script>.py`.*
+*All results from experiment scripts in `experiments/`. Re-run any phase: `python experiments/<script>.py`*
+*Before citing any numbers, read Section 8 (Limitations) in full.*

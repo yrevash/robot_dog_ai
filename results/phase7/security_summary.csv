@@ -1,0 +1,8 @@
+attack_type,n_tested,n_succeeded,success_rate,note
+A1_replay,16,16,1.0,"photo-attack proxy: test-set enrolled images, same identity as DB"
+A2_cross_identity_near_thresh,13,0,0.0,Harshhini images scoring above 0.40 near-threshold warn
+A2_cross_identity_accepted,13,0,0.0,Harshhini images accepted by full two-gate matcher
+A3_stress_test_enrolled_training,62,49,0.7903,enrolled training images above 0.42 threshold; min_margin=-0.2546 mean_margin=+0.4065
+A4_centroid_enrolled_mean,62,49,0.7903,enrolled images with centroid_score >= 0.4; mean=0.6867
+A4_centroid_impostor_above_thresh,13,0,0.0,impostor images with centroid_score >= 0.4; mean=0.1877
+A5_single_frame_known_impostor,13,0,0.0,Phase 2: max Harshhini score=0.363 < threshold 0.42. Known impostor cannot spoof in single frame. Unknown visually-similar impostor NOT tested.

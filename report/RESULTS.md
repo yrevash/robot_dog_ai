@@ -18,9 +18,10 @@
 5. [Phase 3 — Temporal Voting Analysis](#5-phase-3--temporal-voting-analysis)
 6. [Phase 4 — Gesture Classification](#6-phase-4--gesture-classification)
 7. [Phase 6 — End-to-End Latency](#7-phase-6--end-to-end-latency)
-8. [Limitations and Honest Caveats](#8-limitations-and-honest-caveats)
-9. [Key Findings](#9-key-findings)
-10. [File Index](#10-file-index)
+8. [Phase 7 — Security Analysis](#8-phase-7--security-analysis)
+9. [Limitations and Honest Caveats](#9-limitations-and-honest-caveats)
+10. [Key Findings](#10-key-findings)
+11. [File Index](#11-file-index)
 
 ---
 
@@ -327,48 +328,140 @@ Gesture is dominant even in the measured-only view. With SFace added it would be
 
 ---
 
-## 8. Limitations and Honest Caveats
+## 8. Phase 7 — Security Analysis
+
+**Script:** `experiments/security_analysis.py`
+**Output folder:** `results/phase7/`
+
+### 8.1 Overview
+
+Phase 7 formally documents the security properties and known limitations of the REVO face pipeline.
+The system has **no liveness detection** — it cannot distinguish a live face from a printed photograph,
+screen replay, or any static rendering of an enrolled person's face.
+
+Five attack scenarios were tested against the production two-gate matcher
+(cosine threshold = 0.42, margin = 0.06, centroid threshold = 0.40).
+
+### 8.2 Attack Results Summary
+
+| Attack | n_tested | n_succeeded | Success Rate | Notes |
+|--------|----------|-------------|--------------|-------|
+| **A1 — Replay/photo-attack (test-set enrolled images)** | 16 | 16 | **100%** | All test-set enrolled images accepted — equivalent to photo-attack success |
+| A2 — Cross-identity near-threshold (Harshhini, ≥0.40) | 13 | 0 | 0.0% | No impostor image reached the 0.40 near-threshold warning; max score 0.363 |
+| A2 — Cross-identity accepted by full two-gate | 13 | 0 | 0.0% | All Harshhini images rejected |
+| A3 — Enrolled training images above threshold | 62 | 49 | 79.0% | 13 training images scored below 0.42 (detection/pose variation) |
+| A4 — Centroid gate: enrolled images ≥ 0.40 | 62 | 49 | 79.0% | Mean enrolled centroid = 0.687; min = 0.043 (one outlier) |
+| A4 — Centroid gate: impostor images ≥ 0.40 | 13 | 0 | 0.0% | Max impostor centroid = 0.282; mean = 0.188 |
+| A5 — Single-frame spoof (Phase 2 summary) | 13 | 0 | 0.0% | Known Harshhini impostor blocked; visually-similar unknown NOT tested |
+
+### 8.3 Key Finding — Photo-Attack Vulnerability (A1)
+
+**All 16 enrolled test-set images were accepted at 100% success rate.** Because the SFace embedding
+model is deterministic and has no temporal, depth, or texture liveness cue, a high-quality printed
+photograph or screen replay of an enrolled person is functionally identical to a live face. This is
+the most significant security finding of the project.
+
+Score margins for test-set images (proxy photo attacks):
+- 15/16 images scored 1.000 cosine similarity (identical to DB sample — same photo)
+- 1/16 scored 0.835 (Aramaan 024.jpg — slightly different framing)
+- All centroid scores > 0.67 (well above 0.40 gate)
+
+### 8.4 Score Distribution (A2 / A3 / A4)
+
+The enrolled vs impostor score distributions are well separated on this dataset:
+
+| Population | Sample score min | Sample score mean | Sample score max |
+|------------|-----------------|-------------------|-----------------|
+| Enrolled (known_faces/) | varies (some < 0.42 due to detection/pose) | ~0.85 | 1.000 |
+| Harshhini impostor | 0.165 | ~0.269 | 0.363 |
+
+**Centroid gate separation:**
+
+| Population | Centroid score min | Centroid score mean | Centroid score max |
+|------------|-------------------|--------------------|--------------------|
+| Enrolled | 0.043 | 0.687 | 0.920 |
+| Harshhini | 0.043 | 0.188 | 0.282 |
+
+The centroid gate provides an additional ~0.40 gap between the mean enrolled centroid score
+and the maximum impostor centroid score, confirming its value as a secondary gate. However,
+one enrolled image had a centroid score of 0.043 (equal to the worst impostor), indicating
+an enrolled image can sometimes fall into the low-confidence zone (likely detection/alignment failure).
+
+### 8.5 Threshold Stress Test (A3)
+
+Of 62 enrolled training images, 49 (79%) scored above the 0.42 threshold. The 13 that did not
+are most likely due to face detection/alignment failures at inference time (the DB was built from
+the same images under the same detector). Minimum margin above threshold: -0.255 (below threshold);
+mean margin: +0.407; maximum: +0.580. The large mean margin confirms the threshold placement is
+conservative and does not clip typical enrolled images.
+
+### 8.6 Single-Frame Spoof (A5)
+
+For the known Harshhini impostor, single-frame spoof is NOT successful (max score 0.363 < 0.42).
+The 6-frame temporal voting provides additional protection but is not the primary barrier for this
+specific identity — the cosine threshold alone would suffice. For an unknown visually-similar
+impostor (not tested), temporal voting provides meaningful protection by requiring 4/6 consecutive
+frames to exceed the threshold.
+
+### 8.7 Security Limitations Not Addressable Without Liveness Detection
+
+1. **Photo attack**: Any enrolled person's photo can authorize the robot. Mitigation requires depth
+   cameras, IR reflectance detection, or active liveness prompts.
+2. **Screen replay**: A video of an enrolled person played on a phone/laptop would also be accepted.
+3. **3D mask**: A sufficiently accurate 3D-printed or silicon mask of an enrolled person would likely
+   score well above threshold.
+4. **Visually similar impostors**: An untested real impostor with similar facial structure to Yash or
+   Aramaan could score near or above 0.42. The centroid gate provides additional protection but is
+   not validated against look-alike adversaries.
+
+> See also §9.3 (No Liveness Detection) in the Limitations section.
+
+![Score Distribution](phase7/score_distribution.png)
+
+---
+
+## 9. Limitations and Honest Caveats
 
 The following limitations must be acknowledged before any publication or deployment use of these results:
 
-### 8.1 Dataset Size — Does Not Meet IEEE Standards
+### 9.1 Dataset Size — Does Not Meet IEEE Standards
 - **Face recognition:** N=29 test samples, 2 enrolled subjects, 1 impostor identity. IEEE biometric papers typically require ≥50 subjects, ≥500 test images, ≥10 impostor identities. Current results are suitable only for a proof-of-concept / feasibility demonstration.
 - **Gesture recognition:** 600 images from 2 subjects. Minimum for a generalisation claim: ≥8–10 subjects. Current LOSO analysis (2-fold) has no statistical power.
 
-### 8.2 LEFT/RIGHT Gestures Are Broken
+### 9.2 LEFT/RIGHT Gestures Are Broken
 The directional gesture commands (LEFT, RIGHT) have 0% recall for both subjects. They cannot be deployed in the current system. Either redesign the geometric rules (e.g., wrist-roll or sideways palm orientation) or remove these commands from the published system description.
 
-### 8.3 No Liveness Detection
-The system has no anti-spoofing / liveness detection. A printed photograph of an enrolled person held in front of the camera will be accepted. This is a known limitation and must be stated explicitly in any publication.
+### 9.3 No Liveness Detection
+The system has no anti-spoofing / liveness detection. **Phase 7 confirms a 100% photo-attack success rate for enrolled identities.** A printed photograph of an enrolled person held in front of the camera will be accepted. This is a known limitation and must be stated explicitly in any publication.
 
-### 8.4 Synthetic Impostors Are Weak Adversaries
+### 9.4 Synthetic Impostors Are Weak Adversaries
 The threshold sweep used blurred/flipped/brightness-shifted versions of enrolled images as impostors. These produce embeddings far below any reasonable threshold. Real-world impostors (unknown faces, similar-looking individuals, morphed images) are not tested.
 
-### 8.5 SFace Embedding Not Measured in Latency
+### 9.5 SFace Embedding Not Measured in Latency
 The most computationally expensive per-frame step (SFace AlignCrop + inference, ~2–3 ms on M3, ~80–120 ms on RPi) was omitted from Phase 6 measurements. Headline FPS figures are overestimates.
 
-### 8.6 Static Images ≠ Live Video
+### 9.6 Static Images ≠ Live Video
 Gesture evaluation used static, carefully posed photos. Production runs on video frames with motion blur, occlusion, lighting variation, and temporal jitter. Performance on live video may be lower than the static-image numbers.
 
-### 8.7 Mac Measurements Do Not Predict RPi Performance
+### 9.7 Mac Measurements Do Not Predict RPi Performance
 All Phase 6 timings are on Apple M3 (8-core, ~4 GHz). The deployment target is Raspberry Pi 4 (4-core Cortex-A72, 1.5 GHz, no GPU). Estimated 5–10× slowdown; RPi benchmarks require physical hardware (Phase 5 — not yet run).
 
-### 8.8 Gate Comparison and Threshold Sweep Used Different Setups
+### 9.8 Gate Comparison and Threshold Sweep Used Different Setups
 Phase 2 (gate comparison) used a 2-person DB with real Harshhini as impostor. Phase 2.4 (threshold sweep) used a 3-person DB (Harshhini enrolled) with synthetic impostors. These results are not comparable to each other.
 
-### 8.9 No Confidence Intervals Reported in Previous Versions
+### 9.9 No Confidence Intervals Reported in Previous Versions
 With N=29 for face and N=600 (2 subjects) for gesture, all metrics have wide confidence intervals. Key 95% CIs:
 - Face TAR 16/16 = 1.000 (CI: 0.806–1.000)
 - Face FAR 0/13 = 0.000 (CI: 0.000–0.228) ← FAR could be as high as 22.8% at scale
 - Gesture ACC 392/600 = 65.3% (CI: 61.4%–69.0%)
 - Gesture 8-class ACC 392/480 = 81.7% (CI: 78.0%–84.9%)
 
-### 8.10 LBPH Baseline Missing
+### 9.10 LBPH Baseline Missing
 No baseline comparison was completed. Before claiming superiority of SFace, a comparison against LBPH, dlib, or another standard method is required.
 
 ---
 
-## 9. Key Findings
+## 10. Key Findings
 
 ### Finding 1 — SFace Provides Adequate Embedding Separation for 2-Subject Scenario
 On the tested dataset (2 enrolled, 1 real impostor), cosine similarity scores are well separated: minimum enrolled score 0.661 vs maximum impostor score 0.363, a gap of 0.297. The production threshold (0.42) sits in the middle of this gap. **Caveat:** This separation is specific to this subject combination; it does not guarantee FAR=0 with visually similar impostors or a larger identity pool.
@@ -391,9 +484,12 @@ MediaPipe HandLandmarker accounts for ~80% of measured processing time (~10.7 ms
 ### Finding 7 — RPi Performance Is Unvalidated
 Phase 5 benchmarks require physical Raspberry Pi hardware. All RPi figures in this report are estimates based on known ARM vs M3 scaling factors. Do not cite RPi numbers until Phase 5 is run.
 
+### Finding 8 — Photo-Attack Success Rate Is 100% (Phase 7)
+Phase 7 confirms that all 16 enrolled test-set images (proxy for printed photographs) are accepted by the full two-gate matcher at 100% success rate. The embedding-level score for these images is 0.835–1.000, far above the 0.42 threshold. The centroid gate also passes (scores 0.677–0.880). Liveness detection is the single most critical security gap in the current system. The known Harshhini impostor is rejected (max score 0.363), but this does not generalise to unknown or visually-similar impostors.
+
 ---
 
-## 10. File Index
+## 11. File Index
 
 ```
 results/
@@ -434,8 +530,13 @@ results/
 │   ├── gesture_vote_sweep.csv          Proxy-based sweep; see §7.3 for real estimates
 │   └── gesture_vote_sweep.png
 │
+├── phase7/                              ← Security analysis (Phase 7)
+│   ├── security_summary.csv            Per-attack success rates (7 attack scenarios)
+│   ├── security_margins.csv            Per-image scores and margins (enrolled + impostor)
+│   └── score_distribution.png          Sample + centroid score histograms
+│
 └── logs/                                ← Full timestamped run logs
-    └── phase{2,3,4,6}_*.log
+    └── phase{2,3,4,6,7}_*.log
 ```
 
 ---

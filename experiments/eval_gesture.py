@@ -94,14 +94,9 @@ except ImportError as exc:
 
 #: The 10 testable gesture classes in UI display order.
 GESTURE_CLASSES: List[str] = [
-    "FORWARD",
-    "BACKWARD",
-    "LEFT",
-    "RIGHT",
     "SIT",
     "STAND",
     "WALK",
-    "TAIL_WAG",
     "STOP",
     "BARK",
 ]

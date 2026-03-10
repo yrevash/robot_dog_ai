@@ -1,0 +1,5 @@
+config,TAR,FAR,FRR,ACC,TP,FP,FN,TN,total_enrolled,total_impostor
+A: Score only,1.0,0.0,0.0,1.0,16,0,0,13,16,13
+B: Score+Margin,1.0,0.0,0.0,1.0,16,0,0,13,16,13
+C: Score+Centroid,1.0,0.0,0.0,1.0,16,0,0,13,16,13
+D: Full two-gate,1.0,0.0,0.0,1.0,16,0,0,13,16,13

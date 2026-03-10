@@ -192,6 +192,9 @@ class TimedPipeline:
         self._server_url    = server_url
         self._gesture_votes = gesture_votes
         self._log           = log
+        # Infer embedding dimension from DB (or default to 128 for SFace)
+        self._emb_dim: int  = (face_db[0].shape[1] if face_db is not None
+                                else 128)
 
         # Temporal vote state
         self._history: deque = deque(maxlen=HISTORY_LEN)
@@ -242,14 +245,14 @@ class TimedPipeline:
             except Exception:
                 emb = None
         else:
-            # Proxy: matmul of similar FLOP count to SFace 512-d embedding
+            # Proxy: matmul proxy matching actual DB embedding dimension
             cx, cy = FULL_W // 2, FULL_H // 2
             crop = frame[cy - 50: cy + 50, cx - 50: cx + 50]
             if crop.size == 0:
                 crop = np.zeros((100, 100, 3), dtype=np.uint8)
             resized = cv2.resize(crop, (112, 112)).astype(np.float32) / 255.0
             flat = resized.reshape(1, -1)
-            W    = np.ones((flat.shape[1], 512), dtype=np.float32) * 0.001
+            W    = np.ones((flat.shape[1], self._emb_dim), dtype=np.float32) * 0.001
             feat = (flat @ W)[0]
             norm = np.linalg.norm(feat)
             emb  = feat / norm if norm > 1e-8 else feat
@@ -344,10 +347,7 @@ class TimedPipeline:
 
         t_detect_ms, face_row = self._detect(frame)
 
-        if face_row is not None or self._recognizer is None:
-            t_embed_ms, emb = self._embed(frame, face_row)
-        else:
-            t_embed_ms, emb = 0.0, None
+        t_embed_ms, emb = self._embed(frame, face_row)
 
         t_match_ms, identity = self._match(emb)
 
@@ -609,7 +609,7 @@ def main() -> None:
     out_dir = get_results_dir("phase6")
 
     models_dir = _ROOT / "models"
-    db_path    = _ROOT / "face_db.npz"
+    db_path    = _ROOT / "data" / "face_db.npz"
 
     # ── Load models (graceful degradation to proxies) ─────────────────────────
     log.info("Loading models from %s", models_dir)

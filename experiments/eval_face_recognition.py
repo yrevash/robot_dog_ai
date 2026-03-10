@@ -235,7 +235,7 @@ def run_demo(log, out_dir: Path) -> None:
     # ── Part 3: LBPH baseline comparison ─────────────────────────────────────
     log.info("\n--- Part 3: LBPH Baseline Comparison ---")
     try:
-        lbph_rows = _run_lbph_comparison(image_paths, detector, enrolled_names, log)
+        lbph_rows = _run_lbph_comparison(detector, enrolled_names, log)
         save_csv(out_dir / "lbph_comparison.csv", lbph_rows,
                  ["method","TAR","FAR","FRR","ACC"])
         log.info("LBPH comparison saved → results/phase2/lbph_comparison.csv")
@@ -335,65 +335,150 @@ def run_full(log, out_dir: Path, test_dir: Path) -> None:
     # Lighting ablation from CSV
     _compute_lighting_ablation_from_results(all_rows, out_dir, log)
 
+    # ── LBPH baseline comparison ──────────────────────────────────────────────
+    log.info("\n--- LBPH Baseline Comparison ---")
+    try:
+        lbph_rows = _run_lbph_comparison(detector, enrolled_names, log, test_dir=test_dir)
+        save_csv(out_dir / "lbph_comparison.csv", lbph_rows,
+                 ["method","TAR","FAR","FRR","ACC"])
+        log.info("LBPH comparison saved → results/phase2/lbph_comparison.csv")
+    except Exception as exc:
+        log.warning(f"LBPH comparison failed: {exc}")
+
     log.info("\n✓ Phase 2 (full) complete. All results in results/phase2/")
 
 
 # ── LBPH comparison ────────────────────────────────────────────────────────────
-def _run_lbph_comparison(image_paths, detector, enrolled_names, log) -> list:
-    log.info("  Training LBPH recognizer...")
+def _run_lbph_comparison(detector, enrolled_names, log, test_dir: Path = None) -> list:
+    """
+    Train LBPH on known_faces/ (Yash + Aramaan, images 001-017).
+    Test on data/test_faces/ using ground_truth.csv (images 018-025 enrolled +
+    Harshhini impostors).  Never overlap training and test sets.
 
+    LBPH confidence is a distance: lower = more similar.
+    Reject (predict "Unknown") when confidence > CONF_THRESHOLD.
+    """
+    from utils import KNOWN_FACES, TEST_FACES, load_csv
+
+    train_dir  = KNOWN_FACES
+    test_dir   = test_dir if test_dir is not None else TEST_FACES
+    gt_path    = test_dir / "ground_truth.csv"
+
+    if not gt_path.exists():
+        raise RuntimeError(f"ground_truth.csv not found at {gt_path}")
+
+    # ── Build per-person exclusion sets so we never train on test images ──────
+    # gt image_path format: "enrolled/Yash/018.jpg" or "impostors/Harshhini/003.jpg"
+    # Key by (person_name, filename) to avoid excluding same-named files from
+    # different people (e.g. Harshhini/003.jpg must not exclude Yash/003.jpg).
+    gt_rows = load_csv(gt_path)
+    test_per_person: dict[str, set[str]] = {}  # person_name -> {filename, ...}
+    for row in gt_rows:
+        parts = Path(row["image_path"]).parts  # e.g. ("enrolled", "Yash", "018.jpg")
+        if len(parts) >= 3:
+            person = parts[-2]
+            fname  = parts[-1]
+        else:
+            person = row["true_identity"]
+            fname  = Path(row["image_path"]).name
+        test_per_person.setdefault(person, set()).add(fname)
+
+    # ── Train on known_faces/ images that are NOT in the test set ─────────────
+    # Use a lenient detector for LBPH training so we can harvest more ROIs
+    # from the known_faces/ images (which may be lower quality).
+    train_detector = fe.create_detector((640, 480), score_threshold=0.5)
+
+    log.info("  Training LBPH recognizer on known_faces/ (excluding test images)...")
     train_images, train_labels, label_map = [], [], {}
-    for img_path, true_name, _ in image_paths:
-        img = cv2.imread(str(img_path))
-        if img is None:
+
+    for person_dir in sorted(train_dir.iterdir()):
+        if not person_dir.is_dir():
             continue
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        faces = fe.detect_faces(detector, img)
-        if not faces:
+        person_name = person_dir.name
+        if person_name not in enrolled_names:
+            # skip any non-enrolled persons (e.g. Harshhini if present)
             continue
-        x1, y1, x2, y2 = fe.bbox(faces[0])
-        face_roi = gray[y1:y2, x1:x2]
-        if face_roi.size == 0:
-            continue
-        face_roi = cv2.resize(face_roi, (100, 100))
-        lbl = label_map.setdefault(true_name, len(label_map))
-        train_images.append(face_roi)
-        train_labels.append(lbl)
+        for img_path in sorted(person_dir.iterdir()):
+            if img_path.suffix.lower() not in {".jpg", ".jpeg", ".png", ".bmp"}:
+                continue
+            if img_path.name in test_per_person.get(person_name, set()):
+                continue  # hold-out: skip test images for this person
+            img = cv2.imread(str(img_path))
+            if img is None:
+                continue
+            gray  = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            # Try lenient detection first; fall back to full-image crop
+            faces = fe.detect_faces(train_detector, img)
+            if faces:
+                x1, y1, x2, y2 = fe.bbox(faces[0])
+                face_roi = gray[y1:y2, x1:x2]
+            else:
+                # Whole-image fallback: assume the image is already a face crop
+                face_roi = gray
+            if face_roi.size == 0:
+                continue
+            face_roi = cv2.resize(face_roi, (100, 100))
+            lbl = label_map.setdefault(person_name, len(label_map))
+            train_images.append(face_roi)
+            train_labels.append(lbl)
 
     if not train_images:
-        raise RuntimeError("No training images for LBPH")
+        raise RuntimeError("No training images for LBPH after excluding test set")
+
+    log.info(f"  LBPH trained on {len(train_images)} face ROIs "
+             f"({list(label_map.keys())})")
 
     rev_map = {v: k for k, v in label_map.items()}
     lbph = cv2.face.LBPHFaceRecognizer_create(radius=1, neighbors=8, grid_x=8, grid_y=8)
     lbph.train(train_images, np.array(train_labels))
 
-    # Test: confidence threshold — typical good value is < 80
-    CONF_THRESHOLD = 80.0
+    # ── Test on test_faces/ via ground_truth.csv ──────────────────────────────
+    # LBPH confidence threshold: reject (→ "Unknown") when conf > threshold.
+    # Typical LBPH distances for known faces: 40-70; impostors: 80-150+.
+    CONF_THRESHOLD = 75.0
 
     y_true_lbph, y_pred_lbph = [], []
-    for img_path, true_name, _ in image_paths:
+    for row in gt_rows:
+        img_path  = test_dir / row["image_path"]
+        true_name = row["true_identity"]   # "Unknown" for impostors
+        if not img_path.exists():
+            log.warning(f"  Missing test image: {img_path}")
+            continue
         img = cv2.imread(str(img_path))
         if img is None:
             continue
         gray  = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        faces = fe.detect_faces(detector, img)
-        if not faces:
-            y_true_lbph.append(true_name)
-            y_pred_lbph.append("Unknown")
-            continue
-        x1, y1, x2, y2 = fe.bbox(faces[0])
-        roi = cv2.resize(gray[y1:y2, x1:x2], (100, 100))
+        faces = fe.detect_faces(train_detector, img)
+        if faces:
+            x1, y1, x2, y2 = fe.bbox(faces[0])
+            face_roi = gray[y1:y2, x1:x2]
+            if face_roi.size == 0:
+                face_roi = gray
+        else:
+            # Whole-image fallback for test images too
+            face_roi = gray
+        roi      = cv2.resize(face_roi, (100, 100))
         lbl, conf = lbph.predict(roi)
         pred = rev_map.get(lbl, "Unknown") if conf < CONF_THRESHOLD else "Unknown"
         y_true_lbph.append(true_name)
         y_pred_lbph.append(pred)
+        log.debug(f"  {img_path.name}: true={true_name} pred={pred} conf={conf:.1f}")
 
     m_lbph = compute_metrics(y_true_lbph, y_pred_lbph, enrolled_names)
-    log.info(f"  LBPH (conf<{CONF_THRESHOLD}):  TAR={m_lbph['TAR']:.3f}  FAR={m_lbph['FAR']:.3f}  ACC={m_lbph['ACC']:.3f}")
+    log.info(
+        f"  LBPH (conf<{CONF_THRESHOLD}):  "
+        f"TAR={m_lbph['TAR']:.3f}  FAR={m_lbph['FAR']:.3f}  "
+        f"FRR={m_lbph['FRR']:.3f}  ACC={m_lbph['ACC']:.3f}"
+    )
 
     return [
-        {"method": "LBPH baseline", "TAR": round(m_lbph["TAR"], 4), "FAR": round(m_lbph["FAR"], 4),
-         "FRR": round(m_lbph["FRR"], 4), "ACC": round(m_lbph["ACC"], 4)},
+        {
+            "method": "LBPH baseline",
+            "TAR": round(m_lbph["TAR"], 4),
+            "FAR": round(m_lbph["FAR"], 4),
+            "FRR": round(m_lbph["FRR"], 4),
+            "ACC": round(m_lbph["ACC"], 4),
+        },
     ]
 
 

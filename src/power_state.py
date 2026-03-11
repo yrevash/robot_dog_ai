@@ -16,6 +16,7 @@ Transitions:
 
 from __future__ import annotations
 
+import threading
 import time
 from enum import Enum, auto
 from typing import Callable, Optional
@@ -28,12 +29,17 @@ class PowerState(Enum):
 
 
 class PowerManager:
-    """Tracks idle time and drives state transitions via callbacks."""
+    """Tracks idle time and drives state transitions via callbacks.
+
+    Thread-safe: all public methods acquire an internal lock so callers
+    from different threads (e.g. signal handler, camera thread) do not
+    race on state or timestamp reads/writes.
+    """
 
     def __init__(
         self,
-        idle_to_save_sec: float = 900.0,   # 15 minutes
-        save_to_off_sec: float = 1800.0,   # 30 minutes total
+        idle_to_save_sec: float = 900.0,    # 15 minutes
+        save_to_off_sec: float = 1800.0,    # 30 minutes total idle
         on_enter_active: Optional[Callable[[], None]] = None,
         on_enter_power_save: Optional[Callable[[], None]] = None,
         on_enter_power_off: Optional[Callable[[], None]] = None,
@@ -44,6 +50,7 @@ class PowerManager:
         self._on_enter_power_save = on_enter_power_save
         self._on_enter_power_off = on_enter_power_off
 
+        self._lock = threading.Lock()
         self._state = PowerState.ACTIVE
         self._last_activity = time.monotonic()
 
@@ -56,27 +63,35 @@ class PowerManager:
         return time.monotonic() - self._last_activity
 
     def report_activity(self) -> None:
-        """Call when a face is recognized or a gesture command fires."""
-        self._last_activity = time.monotonic()
-        if self._state == PowerState.POWER_SAVE:
-            self._transition(PowerState.ACTIVE)
+        """Call when a face is recognized or a gesture command fires.
+
+        Resets the idle timer. Wakes from POWER_SAVE (automatic wake on
+        detected activity). Does NOT wake from POWER_OFF — that state
+        requires an explicit ``wake()`` call (button press / signal).
+        """
+        with self._lock:
+            self._last_activity = time.monotonic()
+            if self._state == PowerState.POWER_SAVE:
+                self._transition(PowerState.ACTIVE)
 
     def wake(self) -> None:
-        """Explicit wake trigger (button press). Works from any state."""
-        self._last_activity = time.monotonic()
-        if self._state != PowerState.ACTIVE:
-            self._transition(PowerState.ACTIVE)
+        """Explicit wake trigger (button press / signal). Works from any state."""
+        with self._lock:
+            self._last_activity = time.monotonic()
+            if self._state != PowerState.ACTIVE:
+                self._transition(PowerState.ACTIVE)
 
     def tick(self) -> None:
         """Call every update loop iteration to check for timeout transitions."""
-        idle = self.idle_seconds
+        with self._lock:
+            idle = self.idle_seconds
 
-        if self._state == PowerState.ACTIVE:
-            if idle >= self.idle_to_save_sec:
-                self._transition(PowerState.POWER_SAVE)
-        elif self._state == PowerState.POWER_SAVE:
-            if idle >= self.save_to_off_sec:
-                self._transition(PowerState.POWER_OFF)
+            if self._state == PowerState.ACTIVE:
+                if idle >= self.idle_to_save_sec:
+                    self._transition(PowerState.POWER_SAVE)
+            elif self._state == PowerState.POWER_SAVE:
+                if idle >= self.save_to_off_sec:
+                    self._transition(PowerState.POWER_OFF)
 
     def _transition(self, new_state: PowerState) -> None:
         if new_state == self._state:

@@ -231,8 +231,7 @@ class FaceControlCenter:
         self._refresh_person_suggestions()
         self._load_database(show_info=False)
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
-        self.root.bind("<KeyPress-w>", lambda e: self._wake_button_pressed())
-        self.root.bind("<KeyPress-W>", lambda e: self._wake_button_pressed())
+        self.root.bind("<F5>", lambda e: self._wake_button_pressed())
         self.root.after(20, self._update_loop)
 
     # ── Power management callbacks ─────────────────────────────────────────
@@ -258,7 +257,7 @@ class FaceControlCenter:
         self.stop_camera()
 
     def _wake_button_pressed(self) -> None:
-        """Handle wake from keyboard (W) or button click."""
+        """Handle wake from keyboard (F5) or button click."""
         self.power_manager.wake()
 
     def _format_duration(self, seconds: float) -> str:
@@ -306,7 +305,7 @@ class FaceControlCenter:
         ttk.Label(power_info, textvariable=self.idle_var).pack(side=tk.LEFT)
         ttk.Label(power_info, textvariable=self.uptime_var).pack(side=tk.RIGHT)
 
-        self.wake_btn = ttk.Button(power_frame, text="Wake (W)", command=self._wake_button_pressed)
+        self.wake_btn = ttk.Button(power_frame, text="Wake (F5)", command=self._wake_button_pressed)
         self.wake_btn.pack(fill=tk.X, pady=(4, 0))
 
         # ── Status Section ────────────────────────────────────────────────
@@ -1229,7 +1228,7 @@ class FaceControlCenter:
             font_large = ImageFont.load_default()
             font_small = font_large
         draw.text((180, 190), "REVO — SLEEPING", fill=(200, 200, 200), font=font_large)
-        draw.text((190, 240), "Press  W  or click Wake to resume", fill=(150, 150, 150), font=font_small)
+        draw.text((190, 240), "Press  F5  or click Wake to resume", fill=(150, 150, 150), font=font_small)
         idle_text = f"Idle for {self._format_duration(self.power_manager.idle_seconds)}"
         draw.text((240, 280), idle_text, fill=(100, 100, 100), font=font_small)
         imgtk = ImageTk.PhotoImage(image=dark)
@@ -1246,7 +1245,7 @@ class FaceControlCenter:
             # In POWER_OFF: just show sleep screen, slow poll
             if power_state == PowerState.POWER_OFF:
                 self._render_sleep_screen()
-                self.status_var.set("POWER OFF — Press W to wake")
+                self.status_var.set("POWER OFF — Press F5 to wake")
                 self.root.after(500, self._update_loop)
                 return
 
@@ -1260,7 +1259,8 @@ class FaceControlCenter:
             if self.running and self.cap is not None:
                 ok, frame = self.cap.read()
                 if ok:
-                    self.frame_counter += 1
+                    if power_state != PowerState.POWER_SAVE:
+                        self.frame_counter += 1
                     self._update_fps()
                     if self.unmirror_camera_var.get():
                         frame = cv2.flip(frame, 1)

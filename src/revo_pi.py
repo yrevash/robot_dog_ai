@@ -855,18 +855,21 @@ class PIRuntime:
             on_enter_power_save=self._on_power_save,
             on_enter_power_off=self._on_power_off,
         )
-        self._power_sleeping = False
+        self._wake_requested = False  # set by SIGUSR1 handler, consumed in main loop
 
     def _on_power_active(self) -> None:
         log.info("POWER → ACTIVE")
-        self._power_sleeping = False
+        # Clear stale recognition state from before sleep
+        self._state = State.IDLE
+        self._face_history.clear()
+        self._authorized_until.clear()
+        self._cached_id = None
 
     def _on_power_save(self) -> None:
         log.info("POWER → POWER_SAVE (gesture disabled, frame skip increased)")
 
     def _on_power_off(self) -> None:
         log.info("POWER → POWER_OFF (inference paused, waiting for wake signal)")
-        self._power_sleeping = True
 
     # ── Frame skip ────────────────────────────────────────────────────────────
     def _skip(self) -> int:
@@ -1037,7 +1040,7 @@ class PIRuntime:
     def run(self) -> None:
         signal.signal(signal.SIGINT,  lambda *_: self._stop_evt.set())
         signal.signal(signal.SIGTERM, lambda *_: self._stop_evt.set())
-        signal.signal(signal.SIGUSR1, lambda *_: self._power.wake())  # external wake
+        signal.signal(signal.SIGUSR1, lambda *_: setattr(self, '_wake_requested', True))
 
         camera     = CameraCapture(self._cfg, self._stop_evt)
         frame_id   = 0
@@ -1051,6 +1054,9 @@ class PIRuntime:
         try:
             while not self._stop_evt.is_set():
                 # ── Power management tick ──────────────────────────────────
+                if self._wake_requested:
+                    self._wake_requested = False
+                    self._power.wake()
                 self._power.tick()
                 power = self._power.state
 

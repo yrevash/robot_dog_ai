@@ -5,4 +5,4 @@ A2_cross_identity_accepted,13,0,0.0,Harshhini images accepted by full two-gate m
 A3_stress_test_enrolled_training,92,92,1.0,enrolled training images above 0.42 threshold; min_margin=+0.1646 mean_margin=+0.5309
 A4_centroid_enrolled_mean,92,91,0.9891,enrolled images with centroid_score >= 0.4; mean=0.8024
 A4_centroid_impostor_above_thresh,13,0,0.0,impostor images with centroid_score >= 0.4; mean=0.1981
-A5_single_frame_known_impostor,13,0,0.0,Phase 2: max Harshhini score=0.363 < threshold 0.42. Known impostor cannot spoof in single frame. Unknown visually-similar impostor NOT tested.
+A5_single_frame_known_impostor,13,0,0.0,Phase 2: max Harshhini score=0.326 < threshold 0.42. Known impostor cannot spoof in single frame. Unknown visually-similar impostor NOT tested.

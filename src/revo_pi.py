@@ -56,6 +56,8 @@ from typing import Dict, List, Optional, Set, Tuple
 import cv2
 import numpy as np
 
+from power_state import PowerManager, PowerState
+
 # ── Force OpenCV to use all available cores BEFORE any inference ───────────────
 cv2.setNumThreads(4)
 cv2.setUseOptimized(True)
@@ -153,6 +155,10 @@ class Config:
 
     # Audio
     bark_audio: str = ""               # path to .wav or .mp3
+
+    # Power management
+    idle_to_save_sec: float = 900.0    # 15 min → POWER_SAVE
+    save_to_off_sec:  float = 1800.0   # 30 min → POWER_OFF
 
     @classmethod
     def from_json(cls, path: Path) -> "Config":
@@ -841,6 +847,27 @@ class PIRuntime:
         self._sx = cfg.capture_width  / DETECT_W
         self._sy = cfg.capture_height / DETECT_H
 
+        # Power management
+        self._power = PowerManager(
+            idle_to_save_sec=cfg.idle_to_save_sec,
+            save_to_off_sec=cfg.save_to_off_sec,
+            on_enter_active=self._on_power_active,
+            on_enter_power_save=self._on_power_save,
+            on_enter_power_off=self._on_power_off,
+        )
+        self._power_sleeping = False
+
+    def _on_power_active(self) -> None:
+        log.info("POWER → ACTIVE")
+        self._power_sleeping = False
+
+    def _on_power_save(self) -> None:
+        log.info("POWER → POWER_SAVE (gesture disabled, frame skip increased)")
+
+    def _on_power_off(self) -> None:
+        log.info("POWER → POWER_OFF (inference paused, waiting for wake signal)")
+        self._power_sleeping = True
+
     # ── Frame skip ────────────────────────────────────────────────────────────
     def _skip(self) -> int:
         return {
@@ -946,6 +973,7 @@ class PIRuntime:
 
             if name != "Unknown":
                 names_this_frame.add(name)
+                self._power.report_activity()
                 if controller_bbox is None:
                     controller_bbox = curr_bbox   # largest authorized face owns the gesture
 
@@ -999,6 +1027,7 @@ class PIRuntime:
                         if top != self._last_gesture_sent or elapsed > cfg.gesture_cooldown:
                             self._last_gesture_sent = top
                             self._last_gesture_time = now
+                            self._power.report_activity()
                             cmd = GESTURE_COMMANDS.get(top, top.lower())
                             self._dispatcher.send(person, cmd, source="gesture")
                             self._gesture_history.clear()
@@ -1008,6 +1037,7 @@ class PIRuntime:
     def run(self) -> None:
         signal.signal(signal.SIGINT,  lambda *_: self._stop_evt.set())
         signal.signal(signal.SIGTERM, lambda *_: self._stop_evt.set())
+        signal.signal(signal.SIGUSR1, lambda *_: self._power.wake())  # external wake
 
         camera     = CameraCapture(self._cfg, self._stop_evt)
         frame_id   = 0
@@ -1015,9 +1045,20 @@ class PIRuntime:
         t_status   = time.time()
 
         log.info("REVO Pi runtime started. Ctrl+C to stop.")
+        log.info("Power management: POWER_SAVE after %ds, POWER_OFF after %ds",
+                 int(self._cfg.idle_to_save_sec), int(self._cfg.save_to_off_sec))
 
         try:
             while not self._stop_evt.is_set():
+                # ── Power management tick ──────────────────────────────────
+                self._power.tick()
+                power = self._power.state
+
+                # POWER_OFF: sleep, only wake on signal or stdin
+                if power == PowerState.POWER_OFF:
+                    self._stop_evt.wait(timeout=1.0)
+                    continue
+
                 frame = camera.get(timeout=0.2)
                 if frame is None:
                     continue
@@ -1027,9 +1068,25 @@ class PIRuntime:
 
                 frame_id  += 1
                 skip_count += 1
-                if skip_count < self._skip():
+
+                # POWER_SAVE: increase frame skip significantly
+                effective_skip = self._skip()
+                if power == PowerState.POWER_SAVE:
+                    effective_skip = max(effective_skip, 10)
+
+                if skip_count < effective_skip:
                     continue
                 skip_count = 0
+
+                # POWER_SAVE: only detect faces (no gesture), wake if face seen
+                if power == PowerState.POWER_SAVE:
+                    small = cv2.resize(frame, (DETECT_W, DETECT_H))
+                    self._detector.setInputSize((DETECT_W, DETECT_H))
+                    _, faces = self._detector.detect(small)
+                    if faces is not None and len(faces) > 0:
+                        log.info("Face detected in POWER_SAVE — waking up")
+                        self._power.report_activity()
+                    continue
 
                 self._process(frame, frame_id)
 
@@ -1037,8 +1094,9 @@ class PIRuntime:
                 now = time.time()
                 if now - t_status > 10.0:
                     t_status = now
-                    log.info("State=%-12s | Auth=%s | Frames=%d",
+                    log.info("State=%-12s | Power=%-10s | Auth=%s | Frames=%d",
                              self._state.name,
+                             self._power.state.name,
                              list(self._authorized_until.keys()) or "none",
                              frame_id)
         finally:

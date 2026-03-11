@@ -52,6 +52,7 @@ except Exception:
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # ensure src/ is on path
 import face_embedding as fe
+from power_state import PowerManager, PowerState
 
 
 GESTURE_COMMANDS = {
@@ -111,8 +112,8 @@ class FaceControlCenter:
     def __init__(self, root: tk.Tk) -> None:
         _configure_runtime_paths()
         self.root = root
-        self.root.title("Robot Dog Face + Gesture Control Center")
-        self.root.geometry("1220x820")
+        self.root.title("REVO — Robot Dog Control Center")
+        self.root.geometry("1280x860")
 
         self.camera_index = 0
         self.width = 640
@@ -209,82 +210,165 @@ class FaceControlCenter:
         self.bark_audio_var = tk.StringVar(value=str(default_bark))
         self.iot_url_var = tk.StringVar(value="")
 
+        # Power management
+        self.power_state_var = tk.StringVar(value="ACTIVE")
+        self.fps_var = tk.StringVar(value="FPS: --")
+        self.idle_var = tk.StringVar(value="Idle: 0s")
+        self.uptime_var = tk.StringVar(value="Uptime: 0s")
+        self._start_time = time.time()
+        self._fps_frames: deque = deque(maxlen=30)
+        self._power_save_frame_skip = 10  # only process every Nth frame in power save
+
+        self.power_manager = PowerManager(
+            idle_to_save_sec=900.0,   # 15 minutes
+            save_to_off_sec=1800.0,   # 30 minutes
+            on_enter_active=self._on_power_active,
+            on_enter_power_save=self._on_power_save,
+            on_enter_power_off=self._on_power_off,
+        )
+
         self._build_ui()
         self._refresh_person_suggestions()
         self._load_database(show_info=False)
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
+        self.root.bind("<KeyPress-w>", lambda e: self._wake_button_pressed())
+        self.root.bind("<KeyPress-W>", lambda e: self._wake_button_pressed())
         self.root.after(20, self._update_loop)
 
+    # ── Power management callbacks ─────────────────────────────────────────
+
+    def _on_power_active(self) -> None:
+        """Resume full operation."""
+        self.power_state_var.set("ACTIVE")
+        if not self.running:
+            self.start_camera()
+        if self.db_loaded and not self.recognition_on:
+            self.start_recognition()
+
+    def _on_power_save(self) -> None:
+        """Reduce frame rate, disable gesture detection. Camera stays open."""
+        self.power_state_var.set("POWER SAVE")
+        self.gesture_history.clear()
+        self.detected_gesture_history.clear()
+        self.last_raw_gesture = None
+
+    def _on_power_off(self) -> None:
+        """Release camera, stop all inference."""
+        self.power_state_var.set("POWER OFF")
+        self.stop_camera()
+
+    def _wake_button_pressed(self) -> None:
+        """Handle wake from keyboard (W) or button click."""
+        self.power_manager.wake()
+
+    def _format_duration(self, seconds: float) -> str:
+        """Format seconds as Xh Ym Zs."""
+        s = int(seconds)
+        if s < 60:
+            return f"{s}s"
+        m, s = divmod(s, 60)
+        if m < 60:
+            return f"{m}m {s}s"
+        h, m = divmod(m, 60)
+        return f"{h}h {m}m"
+
+    # ── UI ─────────────────────────────────────────────────────────────────
+
     def _build_ui(self) -> None:
-        top = ttk.Frame(self.root, padding=10)
-        top.pack(fill=tk.X)
-
-        ttk.Label(top, text="Person:").grid(row=0, column=0, sticky="w")
-        self.person_combo = ttk.Combobox(top, width=22, textvariable=self.person_name_var)
-        self.person_combo.grid(row=0, column=1, padx=6, sticky="w")
-
-        ttk.Button(top, text="Start Camera", command=self.start_camera).grid(row=0, column=2, padx=4)
-        ttk.Button(top, text="Stop Camera", command=self.stop_camera).grid(row=0, column=3, padx=4)
-        ttk.Button(top, text="Start Recognition", command=self.start_recognition).grid(row=0, column=4, padx=4)
-        ttk.Button(top, text="Pause Recognition", command=self.pause_recognition).grid(row=0, column=5, padx=4)
-
-        ttk.Button(top, text="Capture Sample", command=self.capture_sample).grid(row=1, column=2, padx=4, pady=6)
-        ttk.Button(top, text="Import Photos", command=self.import_photos).grid(row=1, column=3, padx=4, pady=6)
-        ttk.Button(top, text="Build DB", command=self.build_database).grid(row=1, column=4, padx=4, pady=6)
-        ttk.Button(top, text="Reload DB", command=self._load_database).grid(row=1, column=5, padx=4, pady=6)
-
-        ttk.Checkbutton(
-            top,
-            text="Multi-face recognition",
-            variable=self.multi_face_var,
-        ).grid(row=1, column=0, columnspan=2, sticky="w")
-
-        ttk.Checkbutton(
-            top,
-            text="Fix mirrored camera",
-            variable=self.unmirror_camera_var,
-        ).grid(row=2, column=0, columnspan=2, sticky="w")
-
-        ttk.Checkbutton(
-            top,
-            text="Enable gesture commands",
-            variable=self.gesture_enabled_var,
-        ).grid(row=3, column=0, columnspan=2, sticky="w")
-
-        ttk.Checkbutton(
-            top,
-            text="Greet authorized person",
-            variable=self.greet_enabled_var,
-        ).grid(row=3, column=2, columnspan=2, sticky="w")
-
-        ttk.Button(top, text="Select Bark Audio", command=self.choose_bark_audio).grid(row=3, column=4, padx=4, sticky="ew")
-        ttk.Label(top, textvariable=self.bark_audio_var, width=34).grid(row=3, column=5, sticky="w")
-
-        body = ttk.Frame(self.root, padding=(10, 0, 10, 10))
+        # ── Main body: sidebar + video ────────────────────────────────────
+        body = ttk.Frame(self.root, padding=5)
         body.pack(fill=tk.BOTH, expand=True)
 
-        left = ttk.Frame(body, width=430)
-        left.pack(side=tk.LEFT, fill=tk.Y)
-        left.pack_propagate(False)
+        # Left sidebar
+        sidebar = ttk.Frame(body, width=340)
+        sidebar.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 5))
+        sidebar.pack_propagate(False)
 
+        # Right: video feed
         right = ttk.Frame(body)
         right.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
-
-        iot = ttk.Frame(left, padding=(0, 0, 0, 6))
-        iot.pack(fill=tk.X)
-        ttk.Label(iot, text="IoT HTTP URL:").pack(side=tk.LEFT)
-        ttk.Entry(iot, textvariable=self.iot_url_var).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=8)
-
-        info = ttk.Frame(left, padding=(0, 0, 0, 10))
-        info.pack(fill=tk.X)
-        ttk.Label(info, textvariable=self.status_var).pack(anchor="w")
-        ttk.Label(info, textvariable=self.detect_var).pack(anchor="w")
-        ttk.Label(info, textvariable=self.auth_var).pack(anchor="w")
-        ttk.Label(info, textvariable=self.gesture_var).pack(anchor="w")
-        ttk.Label(info, textvariable=self.command_var).pack(anchor="w")
-
         self.video_label = ttk.Label(right)
-        self.video_label.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
+        self.video_label.pack(fill=tk.BOTH, expand=True)
+
+        # ── Power State Section ───────────────────────────────────────────
+        power_frame = ttk.LabelFrame(sidebar, text=" Power Management ", padding=8)
+        power_frame.pack(fill=tk.X, pady=(0, 6))
+
+        self.power_indicator = tk.Label(
+            power_frame, textvariable=self.power_state_var,
+            font=("Helvetica", 14, "bold"), fg="white", bg="#2ecc71",
+            padx=10, pady=4,
+        )
+        self.power_indicator.pack(fill=tk.X)
+
+        power_info = ttk.Frame(power_frame)
+        power_info.pack(fill=tk.X, pady=(4, 0))
+        ttk.Label(power_info, textvariable=self.idle_var).pack(side=tk.LEFT)
+        ttk.Label(power_info, textvariable=self.uptime_var).pack(side=tk.RIGHT)
+
+        self.wake_btn = ttk.Button(power_frame, text="Wake (W)", command=self._wake_button_pressed)
+        self.wake_btn.pack(fill=tk.X, pady=(4, 0))
+
+        # ── Status Section ────────────────────────────────────────────────
+        status_frame = ttk.LabelFrame(sidebar, text=" System Status ", padding=8)
+        status_frame.pack(fill=tk.X, pady=(0, 6))
+
+        ttk.Label(status_frame, textvariable=self.fps_var).pack(anchor="w")
+        ttk.Label(status_frame, textvariable=self.status_var).pack(anchor="w")
+        ttk.Label(status_frame, textvariable=self.detect_var).pack(anchor="w")
+        ttk.Label(status_frame, textvariable=self.auth_var).pack(anchor="w")
+        ttk.Label(status_frame, textvariable=self.gesture_var).pack(anchor="w")
+        ttk.Label(status_frame, textvariable=self.command_var).pack(anchor="w")
+
+        # ── Camera Controls ───────────────────────────────────────────────
+        cam_frame = ttk.LabelFrame(sidebar, text=" Camera Controls ", padding=8)
+        cam_frame.pack(fill=tk.X, pady=(0, 6))
+
+        cam_btns = ttk.Frame(cam_frame)
+        cam_btns.pack(fill=tk.X)
+        ttk.Button(cam_btns, text="Start Camera", command=self.start_camera).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=1)
+        ttk.Button(cam_btns, text="Stop Camera", command=self.stop_camera).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=1)
+
+        rec_btns = ttk.Frame(cam_frame)
+        rec_btns.pack(fill=tk.X, pady=(4, 0))
+        ttk.Button(rec_btns, text="Start Recognition", command=self.start_recognition).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=1)
+        ttk.Button(rec_btns, text="Pause Recognition", command=self.pause_recognition).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=1)
+
+        ttk.Checkbutton(cam_frame, text="Multi-face recognition", variable=self.multi_face_var).pack(anchor="w", pady=(4, 0))
+        ttk.Checkbutton(cam_frame, text="Fix mirrored camera", variable=self.unmirror_camera_var).pack(anchor="w")
+        ttk.Checkbutton(cam_frame, text="Enable gesture commands", variable=self.gesture_enabled_var).pack(anchor="w")
+        ttk.Checkbutton(cam_frame, text="Greet authorized person", variable=self.greet_enabled_var).pack(anchor="w")
+
+        # ── Enrollment Section ────────────────────────────────────────────
+        enroll_frame = ttk.LabelFrame(sidebar, text=" Enrollment ", padding=8)
+        enroll_frame.pack(fill=tk.X, pady=(0, 6))
+
+        name_row = ttk.Frame(enroll_frame)
+        name_row.pack(fill=tk.X)
+        ttk.Label(name_row, text="Person:").pack(side=tk.LEFT)
+        self.person_combo = ttk.Combobox(name_row, width=18, textvariable=self.person_name_var)
+        self.person_combo.pack(side=tk.LEFT, padx=4, fill=tk.X, expand=True)
+
+        enroll_btns = ttk.Frame(enroll_frame)
+        enroll_btns.pack(fill=tk.X, pady=(4, 0))
+        ttk.Button(enroll_btns, text="Capture", command=self.capture_sample).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=1)
+        ttk.Button(enroll_btns, text="Import", command=self.import_photos).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=1)
+
+        db_btns = ttk.Frame(enroll_frame)
+        db_btns.pack(fill=tk.X, pady=(4, 0))
+        ttk.Button(db_btns, text="Build DB", command=self.build_database).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=1)
+        ttk.Button(db_btns, text="Reload DB", command=self._load_database).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=1)
+
+        # ── IoT / Audio Section ───────────────────────────────────────────
+        iot_frame = ttk.LabelFrame(sidebar, text=" IoT / Audio ", padding=8)
+        iot_frame.pack(fill=tk.X, pady=(0, 6))
+
+        iot_row = ttk.Frame(iot_frame)
+        iot_row.pack(fill=tk.X)
+        ttk.Label(iot_row, text="URL:").pack(side=tk.LEFT)
+        ttk.Entry(iot_row, textvariable=self.iot_url_var).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=4)
+
+        ttk.Button(iot_frame, text="Select Bark Audio", command=self.choose_bark_audio).pack(fill=tk.X, pady=(4, 0))
 
     def _refresh_person_suggestions(self) -> None:
         people = sorted(p.name for p in fe.KNOWN_FACES_DIR.glob("*") if p.is_dir())
@@ -1097,14 +1181,87 @@ class FaceControlCenter:
         if cmd != self.last_command or (now - self.last_command_time) > self.command_cooldown:
             self.last_command = cmd
             self.last_command_time = now
+            self.power_manager.report_activity()
             self._send_robot_command(controller, cmd, source="gesture")
+
+    def _update_power_indicator(self) -> None:
+        """Update the power state indicator color."""
+        state = self.power_manager.state
+        colors = {
+            PowerState.ACTIVE: "#2ecc71",      # green
+            PowerState.POWER_SAVE: "#f39c12",  # amber
+            PowerState.POWER_OFF: "#e74c3c",   # red
+        }
+        self.power_indicator.configure(bg=colors.get(state, "#2ecc71"))
+        self.idle_var.set(f"Idle: {self._format_duration(self.power_manager.idle_seconds)}")
+        self.uptime_var.set(f"Up: {self._format_duration(time.time() - self._start_time)}")
+
+    def _update_fps(self) -> None:
+        """Compute rolling FPS."""
+        now = time.monotonic()
+        self._fps_frames.append(now)
+        if len(self._fps_frames) >= 2:
+            elapsed = self._fps_frames[-1] - self._fps_frames[0]
+            if elapsed > 0:
+                fps = (len(self._fps_frames) - 1) / elapsed
+                self.fps_var.set(f"FPS: {fps:.1f}")
+
+    def _render_power_overlay(self, view) -> None:
+        """Draw overlay text on video when in power save or power off."""
+        h, w = view.shape[:2]
+        state = self.power_manager.state
+        if state == PowerState.POWER_SAVE:
+            overlay = view.copy()
+            cv2.rectangle(overlay, (0, 0), (w, 50), (0, 180, 230), -1)
+            cv2.addWeighted(overlay, 0.6, view, 0.4, 0, view)
+            cv2.putText(view, "POWER SAVE — Monitoring for faces",
+                        (15, 34), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+
+    def _render_sleep_screen(self) -> None:
+        """Show a static dark frame when in POWER_OFF."""
+        dark = Image.new("RGB", (640, 480), (30, 30, 30))
+        from PIL import ImageDraw, ImageFont
+        draw = ImageDraw.Draw(dark)
+        try:
+            font_large = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 28)
+            font_small = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 16)
+        except Exception:
+            font_large = ImageFont.load_default()
+            font_small = font_large
+        draw.text((180, 190), "REVO — SLEEPING", fill=(200, 200, 200), font=font_large)
+        draw.text((190, 240), "Press  W  or click Wake to resume", fill=(150, 150, 150), font=font_small)
+        idle_text = f"Idle for {self._format_duration(self.power_manager.idle_seconds)}"
+        draw.text((240, 280), idle_text, fill=(100, 100, 100), font=font_small)
+        imgtk = ImageTk.PhotoImage(image=dark)
+        self.video_label.imgtk = imgtk
+        self.video_label.configure(image=imgtk)
 
     def _update_loop(self) -> None:
         try:
+            # ── Power management tick ─────────────────────────────────────
+            self.power_manager.tick()
+            self._update_power_indicator()
+            power_state = self.power_manager.state
+
+            # In POWER_OFF: just show sleep screen, slow poll
+            if power_state == PowerState.POWER_OFF:
+                self._render_sleep_screen()
+                self.status_var.set("POWER OFF — Press W to wake")
+                self.root.after(500, self._update_loop)
+                return
+
+            # In POWER_SAVE: skip most frames
+            if power_state == PowerState.POWER_SAVE and self.running:
+                self.frame_counter += 1
+                if (self.frame_counter % self._power_save_frame_skip) != 0:
+                    self.root.after(20, self._update_loop)
+                    return
+
             if self.running and self.cap is not None:
                 ok, frame = self.cap.read()
                 if ok:
                     self.frame_counter += 1
+                    self._update_fps()
                     if self.unmirror_camera_var.get():
                         frame = cv2.flip(frame, 1)
                     proc = fe.normalize_lighting(frame) if self.light_normalize else frame
@@ -1118,6 +1275,20 @@ class FaceControlCenter:
                     recognized_names: Set[str] = set()
                     visible_area_by_name: Dict[str, float] = {}
                     visible_face_box_by_name: Dict[str, Tuple[int, int, int, int]] = {}
+
+                    # In POWER_SAVE: if any face detected, wake up
+                    if power_state == PowerState.POWER_SAVE:
+                        if faces:
+                            self.power_manager.report_activity()
+                        self._render_power_overlay(view)
+                        rgb = cv2.cvtColor(view, cv2.COLOR_BGR2RGB)
+                        img = Image.fromarray(rgb)
+                        imgtk = ImageTk.PhotoImage(image=img)
+                        self.video_label.imgtk = imgtk
+                        self.video_label.configure(image=imgtk)
+                        self.status_var.set("POWER SAVE — Watching for faces")
+                        self.root.after(20, self._update_loop)
+                        return
 
                     if self.recognition_on and self.db_loaded:
                         if faces and (not self.multi_face_var.get()) and len(faces) != 1:
@@ -1154,6 +1325,7 @@ class FaceControlCenter:
 
                                 if name != "Unknown":
                                     recognized_names.add(name)
+                                    self.power_manager.report_activity()
                                     if area > visible_area_by_name.get(name, 0.0):
                                         visible_area_by_name[name] = float(area)
                                         visible_face_box_by_name[name] = (x1, y1, x2, y2)

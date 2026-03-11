@@ -1,4 +1,4 @@
 state,n_input_frames,frames_processed,detect_calls,embed_calls,gesture_calls,wall_time_s,fps,cpu_percent,frame_skip
-ACTIVE,200,200,200,0,200,4.0923,48.87,193.3,1
-POWER_SAVE,200,20,20,0,0,0.3954,50.58,185.6,10
-POWER_OFF,200,0,0,0,0,0.5708,0.0,56.1,1
+ACTIVE,200,200,200,0,200,3.961,50.49,204.1,1
+POWER_SAVE,200,20,20,0,0,0.3805,52.57,203.0,10
+POWER_OFF,200,0,0,0,0,0.5603,0.0,55.3,1

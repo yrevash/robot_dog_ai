@@ -219,8 +219,7 @@ class RobotDogSimulation:
         ("4 fingers up", "WALK"),
         ("3 fingers up", "STAND"),
         ("Thumb down", "BACKWARD"),
-        ("Index left", "LEFT"),
-        ("Index right", "RIGHT"),
+        ("Index point", "LEFT / RIGHT"),
         ("Pinch + 3 up", "BARK"),
         ("Pinky only", "TAIL WAG"),
     ]

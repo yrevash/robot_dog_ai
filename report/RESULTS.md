@@ -1,5 +1,9 @@
 # REVO Robot Dog — Experiment Results
 
+<p align="center">
+  <img src="../dog_vector/da1fa3cf-2858-4978-bcaa-ff8164fd2aaf.jpg" alt="REVO Robot Dog" width="200"/>
+</p>
+
 > **Project:** REVO — Face-Recognition + Gesture-Controlled Robot Dog
 > **Platform:** Apple M3 MacBook (development/test machine). Deployment target is Raspberry Pi 4/5 — RPi benchmarks pending hardware access.
 > **Subjects enrolled (face DB):** 5 (Yash, Aramaan, Pratham, Shubham, Sohail)

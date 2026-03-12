@@ -1,5 +1,9 @@
 # REVO — Power Management Research
 
+<p align="center">
+  <img src="images/revo_robot_dog.jpg" alt="REVO Robot Dog" width="200"/>
+</p>
+
 > **System:** REVO Face-Recognition + Gesture-Controlled Robot Dog
 > **Platform:** Apple M3 MacBook (development/test)
 > **Date:** 2026-03-11

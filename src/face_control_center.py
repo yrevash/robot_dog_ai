@@ -112,25 +112,15 @@ import math
 
 
 class RobotDogSimulation:
-    """2D animated robot dog on a tk.Canvas, driven by command strings."""
+    """Animated robot dog on a tk.Canvas using the vector art image."""
 
     VALID_COMMANDS = {
         "walk", "sit", "stand", "stop", "bark",
         "forward", "backward", "left", "right", "tail_wag", "greet",
     }
 
-    # Colors
-    BODY_COLOR = "#4a90d9"
-    LEG_COLOR = "#3a7bc8"
-    HEAD_COLOR = "#5aa0e9"
-    EYE_WHITE = "#ffffff"
-    EYE_PUPIL = "#111111"
-    NOSE_COLOR = "#222222"
-    GROUND_COLOR = "#333333"
-    PAW_COLOR = "#2a6ab8"
-    MOUTH_COLOR = "#cc3333"
-    LABEL_COLOR = "#aaaaaa"
     BG_COLOR = "#1a1a2e"
+    LABEL_COLOR = "#aaaaaa"
 
     def __init__(self, parent: tk.Widget, width: int = 600, height: int = 200) -> None:
         self.canvas = tk.Canvas(
@@ -143,10 +133,27 @@ class RobotDogSimulation:
         self.frame_tick = 0
         self._anim_id: Optional[str] = None
 
-        # Base position (center of body)
-        self.bx = width // 2
-        self.by = 110
+        # Load the robot dog vector image
+        self._dog_photo: Optional[ImageTk.PhotoImage] = None
+        self._load_dog_image()
+
         self._animate()
+
+    def _load_dog_image(self) -> None:
+        """Load and resize the robot dog vector art."""
+        img_path = _runtime_base_dir() / "dog_vector" / "da1fa3cf-2858-4978-bcaa-ff8164fd2aaf.jpg"
+        if not img_path.exists():
+            return
+        try:
+            pil_img = Image.open(str(img_path))
+            # Resize to fit canvas height with padding
+            target_h = self.h - 30
+            aspect = pil_img.width / pil_img.height
+            target_w = int(target_h * aspect)
+            pil_img = pil_img.resize((target_w, target_h), Image.LANCZOS)
+            self._dog_photo = ImageTk.PhotoImage(pil_img)
+        except Exception:
+            self._dog_photo = None
 
     def set_command(self, cmd: str) -> None:
         cmd = cmd.lower()
@@ -174,8 +181,8 @@ class RobotDogSimulation:
     # ── Ground ────────────────────────────────────────────────────────────
 
     def _draw_ground(self) -> None:
-        gy = self.h - 15
-        self.canvas.create_line(0, gy, self.w, gy, fill=self.GROUND_COLOR, width=2)
+        gy = self.h - 12
+        self.canvas.create_line(0, gy, self.w, gy, fill="#333333", width=2)
         self.canvas.create_rectangle(0, gy, self.w, self.h, fill="#111118", outline="")
 
     # ── Command label ─────────────────────────────────────────────────────
@@ -191,209 +198,92 @@ class RobotDogSimulation:
         }.get(self.command, self.LABEL_COLOR)
         self.canvas.create_text(
             self.w - 10, 15, text=label, anchor="ne",
-            font=("Helvetica", 14, "bold"), fill=color,
+            font=("Helvetica", 16, "bold"), fill=color,
         )
         self.canvas.create_text(
-            self.w // 2, self.h - 5, text="REVO Robot Dog Simulation",
+            self.w // 2, self.h - 3, text="REVO Robot Dog Simulation",
             anchor="s", font=("Helvetica", 8), fill="#555555",
         )
 
-    # ── Dog drawing ───────────────────────────────────────────────────────
+    # ── Dog image with animation effects ──────────────────────────────────
 
     def _draw_dog(self) -> None:
+        if self._dog_photo is None:
+            # Fallback: just draw a placeholder
+            self.canvas.create_text(
+                self.w // 2, self.h // 2, text="[Robot Dog]",
+                font=("Helvetica", 16), fill="#555",
+            )
+            return
+
         cmd = self.command
         t = self.frame_tick
 
-        # Base offsets
-        body_drop = 0.0       # how much the rear drops (sit)
-        head_bob = 0.0        # head vertical offset (bark)
-        mouth_open = False
-        walk_phase = 0.0      # leg oscillation phase
-        tail_wag = 0.0        # tail horizontal swing
-        body_shift_x = 0.0    # horizontal body shift
+        # Base position
+        cx = self.w // 2
+        cy = self.h // 2 - 5
+
+        # Animation offsets
+        offset_x = 0.0
+        offset_y = 0.0
+        show_bark = False
+        show_action = ""
 
         if cmd == "walk" or cmd == "forward":
-            walk_phase = t * 0.18
-            tail_wag = 8 * math.sin(t * 0.12)
-            body_shift_x = 3 * math.sin(t * 0.09)
+            offset_y = 3 * math.sin(t * 0.2)       # bounce
+            offset_x = 4 * math.sin(t * 0.08)       # sway
+            show_action = "Walking..."
         elif cmd == "backward":
-            walk_phase = t * 0.18
-            tail_wag = 8 * math.sin(t * 0.12)
-            body_shift_x = -3 * math.sin(t * 0.09)
+            offset_y = 3 * math.sin(t * 0.2)
+            offset_x = -4 * math.sin(t * 0.08)
+            show_action = "Reversing..."
         elif cmd == "sit":
             progress = min(t, 20) / 20.0
-            body_drop = progress * 20
-            tail_wag = 3 * math.sin(t * 0.05)
+            offset_y = progress * 12                  # sink down
+            show_action = "Sitting" if progress >= 1 else "Sitting down..."
         elif cmd == "stand":
-            tail_wag = 2 * math.sin(t * 0.04)
+            offset_y = 1.5 * math.sin(t * 0.05)     # gentle breathing
         elif cmd == "stop":
-            pass  # frozen
+            show_action = "Stopped"
         elif cmd == "bark":
-            head_bob = 6 * math.sin(t * 0.4)
-            mouth_open = (math.sin(t * 0.4) > 0.2)
-            tail_wag = 5 * math.sin(t * 0.2)
+            offset_y = 5 * math.sin(t * 0.4)         # vigorous bobbing
+            show_bark = (math.sin(t * 0.4) > 0.2)
+            show_action = "Barking!"
         elif cmd == "tail_wag" or cmd == "greet":
-            tail_wag = 15 * math.sin(t * 0.3)
+            offset_x = 3 * math.sin(t * 0.25)
+            show_action = "Happy!"
         elif cmd == "left":
-            body_shift_x = -2
-            tail_wag = 4 * math.sin(t * 0.1)
+            offset_x = -6
+            show_action = "Turning left..."
         elif cmd == "right":
-            body_shift_x = 2
-            tail_wag = 4 * math.sin(t * 0.1)
+            offset_x = 6
+            show_action = "Turning right..."
 
-        cx = self.bx + body_shift_x
-        cy = self.by
-        gy = self.h - 16  # ground y
-
-        # ── Tail ──────────────────────────────────────────────────────────
-        tail_base_x = cx - 80
-        tail_base_y = cy - 10 + body_drop * 0.5
-        tail_tip_x = tail_base_x - 35 + tail_wag
-        tail_tip_y = tail_base_y - 25
-        tail_mid_x = tail_base_x - 18 + tail_wag * 0.6
-        tail_mid_y = tail_base_y - 18
-        self.canvas.create_line(
-            tail_base_x, tail_base_y, tail_mid_x, tail_mid_y,
-            tail_tip_x, tail_tip_y,
-            smooth=True, width=4, fill=self.BODY_COLOR,
+        # Draw the robot dog image
+        self.canvas.create_image(
+            cx + offset_x, cy + offset_y,
+            image=self._dog_photo, anchor="center",
         )
 
-        # ── Body ──────────────────────────────────────────────────────────
-        body_x1 = cx - 75
-        body_y1 = cy - 22
-        body_x2 = cx + 75
-        body_y2 = cy + 22 + body_drop * 0.5
-        self.canvas.create_rectangle(
-            body_x1, body_y1, body_x2, body_y2,
-            fill=self.BODY_COLOR, outline="#3878b0", width=2,
-        )
-        # Body highlight
-        self.canvas.create_rectangle(
-            body_x1 + 5, body_y1 + 3, body_x2 - 5, body_y1 + 10,
-            fill="#5aa0e9", outline="",
-        )
-
-        # ── Legs ──────────────────────────────────────────────────────────
-        leg_width = 10
-        leg_positions = [
-            ("fl", cx + 50, cy + 22),           # front-left
-            ("fr", cx + 62, cy + 22),           # front-right
-            ("bl", cx - 60, cy + 22 + body_drop),  # back-left
-            ("br", cx - 48, cy + 22 + body_drop),  # back-right
-        ]
-
-        for name, lx, ly in leg_positions:
-            # Walking leg animation
-            leg_offset = 0.0
-            if walk_phase != 0:
-                if name in ("fl", "br"):
-                    leg_offset = 12 * math.sin(walk_phase)
-                else:
-                    leg_offset = 12 * math.sin(walk_phase + math.pi)
-
-            # Sit: back legs are shorter/bent
-            leg_len = gy - ly
-            if cmd == "sit" and name.startswith("b"):
-                progress = min(t, 20) / 20.0
-                leg_len = max(10, leg_len - progress * 25)
-
-            foot_y = ly + leg_len
-            knee_y = ly + leg_len * 0.5
-            knee_offset = leg_offset * 0.6
-
-            # Upper leg
-            self.canvas.create_rectangle(
-                lx - leg_width // 2, ly,
-                lx + leg_width // 2, knee_y + knee_offset,
-                fill=self.LEG_COLOR, outline="#2a5a98", width=1,
-            )
-            # Lower leg
-            self.canvas.create_rectangle(
-                lx - leg_width // 2 + 1, knee_y + knee_offset,
-                lx + leg_width // 2 - 1, foot_y + leg_offset,
-                fill=self.LEG_COLOR, outline="#2a5a98", width=1,
-            )
-            # Paw
+        # Bark speech bubble
+        if show_bark:
+            bx = cx + offset_x + 80
+            by = cy + offset_y - 60
+            # Bubble
             self.canvas.create_oval(
-                lx - 7, foot_y + leg_offset - 4,
-                lx + 7, foot_y + leg_offset + 4,
-                fill=self.PAW_COLOR, outline="#1a4a88",
+                bx - 35, by - 18, bx + 35, by + 18,
+                fill="white", outline="#ccc", width=2,
             )
-
-        # ── Neck ──────────────────────────────────────────────────────────
-        neck_x1 = cx + 65
-        neck_y1 = cy - 18
-        neck_x2 = cx + 85
-        neck_y2 = cy + 5
-        self.canvas.create_rectangle(
-            neck_x1, neck_y1 + head_bob * 0.3, neck_x2, neck_y2 + head_bob * 0.3,
-            fill=self.HEAD_COLOR, outline="#4890c9", width=1,
-        )
-
-        # ── Head ──────────────────────────────────────────────────────────
-        head_cx = cx + 100
-        head_cy = cy - 22 + head_bob
-        head_rx = 28
-        head_ry = 22
-
-        self.canvas.create_oval(
-            head_cx - head_rx, head_cy - head_ry,
-            head_cx + head_rx, head_cy + head_ry,
-            fill=self.HEAD_COLOR, outline="#4890c9", width=2,
-        )
-
-        # Ear
-        ear_x = head_cx - 5
-        ear_y = head_cy - head_ry
-        self.canvas.create_polygon(
-            ear_x - 8, ear_y + 2,
-            ear_x, ear_y - 15,
-            ear_x + 8, ear_y + 2,
-            fill="#4890c9", outline="#3878b0",
-        )
-        # Second ear
-        ear_x2 = head_cx + 5
-        self.canvas.create_polygon(
-            ear_x2 - 8, ear_y + 2,
-            ear_x2, ear_y - 15,
-            ear_x2 + 8, ear_y + 2,
-            fill="#4890c9", outline="#3878b0",
-        )
-
-        # Eye
-        eye_x = head_cx + 10
-        eye_y = head_cy - 4
-        self.canvas.create_oval(
-            eye_x - 5, eye_y - 5, eye_x + 5, eye_y + 5,
-            fill=self.EYE_WHITE, outline="#999",
-        )
-        self.canvas.create_oval(
-            eye_x - 2, eye_y - 2, eye_x + 2, eye_y + 2,
-            fill=self.EYE_PUPIL,
-        )
-
-        # Nose / snout
-        snout_x = head_cx + head_rx - 2
-        snout_y = head_cy + 2
-        self.canvas.create_oval(
-            snout_x - 5, snout_y - 4, snout_x + 5, snout_y + 4,
-            fill=self.NOSE_COLOR, outline="#111",
-        )
-
-        # Mouth (bark)
-        if mouth_open:
-            mx = head_cx + head_rx - 8
-            my = head_cy + 10
-            self.canvas.create_polygon(
-                mx - 10, my, mx + 5, my, mx - 3, my + 12,
-                fill=self.MOUTH_COLOR, outline="#aa2222",
-            )
-            # Bark text
-            bark_x = head_cx + head_rx + 15
-            bark_y = head_cy - 15
             self.canvas.create_text(
-                bark_x, bark_y, text="WOOF!",
-                font=("Helvetica", 10, "bold"), fill="#e67e22",
+                bx, by, text="WOOF!",
+                font=("Helvetica", 12, "bold"), fill="#e67e22",
+            )
+
+        # Action text below dog
+        if show_action:
+            self.canvas.create_text(
+                cx, self.h - 18, text=show_action,
+                font=("Helvetica", 10, "italic"), fill="#888888",
             )
 
 

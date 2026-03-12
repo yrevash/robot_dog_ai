@@ -108,12 +108,301 @@ def _configure_runtime_paths() -> None:
     fe.KNOWN_FACES_DIR.mkdir(parents=True, exist_ok=True)
 
 
+import math
+
+
+class RobotDogSimulation:
+    """2D animated robot dog on a tk.Canvas, driven by command strings."""
+
+    VALID_COMMANDS = {
+        "walk", "sit", "stand", "stop", "bark",
+        "forward", "backward", "left", "right", "tail_wag", "greet",
+    }
+
+    # Colors
+    BODY_COLOR = "#4a90d9"
+    LEG_COLOR = "#3a7bc8"
+    HEAD_COLOR = "#5aa0e9"
+    EYE_WHITE = "#ffffff"
+    EYE_PUPIL = "#111111"
+    NOSE_COLOR = "#222222"
+    GROUND_COLOR = "#333333"
+    PAW_COLOR = "#2a6ab8"
+    MOUTH_COLOR = "#cc3333"
+    LABEL_COLOR = "#aaaaaa"
+    BG_COLOR = "#1a1a2e"
+
+    def __init__(self, parent: tk.Widget, width: int = 600, height: int = 200) -> None:
+        self.canvas = tk.Canvas(
+            parent, width=width, height=height,
+            bg=self.BG_COLOR, highlightthickness=1, highlightbackground="#444",
+        )
+        self.w = width
+        self.h = height
+        self.command = "stand"
+        self.frame_tick = 0
+        self._anim_id: Optional[str] = None
+
+        # Base position (center of body)
+        self.bx = width // 2
+        self.by = 110
+        self._animate()
+
+    def set_command(self, cmd: str) -> None:
+        cmd = cmd.lower()
+        if cmd in self.VALID_COMMANDS:
+            if cmd != self.command:
+                self.command = cmd
+                self.frame_tick = 0
+
+    def destroy(self) -> None:
+        if self._anim_id:
+            self.canvas.after_cancel(self._anim_id)
+            self._anim_id = None
+
+    # ── Animation loop ────────────────────────────────────────────────────
+
+    def _animate(self) -> None:
+        if self.command != "stop":
+            self.frame_tick += 1
+        self.canvas.delete("all")
+        self._draw_ground()
+        self._draw_dog()
+        self._draw_label()
+        self._anim_id = self.canvas.after(33, self._animate)
+
+    # ── Ground ────────────────────────────────────────────────────────────
+
+    def _draw_ground(self) -> None:
+        gy = self.h - 15
+        self.canvas.create_line(0, gy, self.w, gy, fill=self.GROUND_COLOR, width=2)
+        self.canvas.create_rectangle(0, gy, self.w, self.h, fill="#111118", outline="")
+
+    # ── Command label ─────────────────────────────────────────────────────
+
+    def _draw_label(self) -> None:
+        label = self.command.upper()
+        color = {
+            "walk": "#2ecc71", "sit": "#f39c12", "stand": "#3498db",
+            "stop": "#e74c3c", "bark": "#e67e22",
+            "forward": "#2ecc71", "backward": "#2ecc71",
+            "left": "#9b59b6", "right": "#9b59b6",
+            "tail_wag": "#1abc9c", "greet": "#1abc9c",
+        }.get(self.command, self.LABEL_COLOR)
+        self.canvas.create_text(
+            self.w - 10, 15, text=label, anchor="ne",
+            font=("Helvetica", 14, "bold"), fill=color,
+        )
+        self.canvas.create_text(
+            self.w // 2, self.h - 5, text="REVO Robot Dog Simulation",
+            anchor="s", font=("Helvetica", 8), fill="#555555",
+        )
+
+    # ── Dog drawing ───────────────────────────────────────────────────────
+
+    def _draw_dog(self) -> None:
+        cmd = self.command
+        t = self.frame_tick
+
+        # Base offsets
+        body_drop = 0.0       # how much the rear drops (sit)
+        head_bob = 0.0        # head vertical offset (bark)
+        mouth_open = False
+        walk_phase = 0.0      # leg oscillation phase
+        tail_wag = 0.0        # tail horizontal swing
+        body_shift_x = 0.0    # horizontal body shift
+
+        if cmd == "walk" or cmd == "forward":
+            walk_phase = t * 0.18
+            tail_wag = 8 * math.sin(t * 0.12)
+            body_shift_x = 3 * math.sin(t * 0.09)
+        elif cmd == "backward":
+            walk_phase = t * 0.18
+            tail_wag = 8 * math.sin(t * 0.12)
+            body_shift_x = -3 * math.sin(t * 0.09)
+        elif cmd == "sit":
+            progress = min(t, 20) / 20.0
+            body_drop = progress * 20
+            tail_wag = 3 * math.sin(t * 0.05)
+        elif cmd == "stand":
+            tail_wag = 2 * math.sin(t * 0.04)
+        elif cmd == "stop":
+            pass  # frozen
+        elif cmd == "bark":
+            head_bob = 6 * math.sin(t * 0.4)
+            mouth_open = (math.sin(t * 0.4) > 0.2)
+            tail_wag = 5 * math.sin(t * 0.2)
+        elif cmd == "tail_wag" or cmd == "greet":
+            tail_wag = 15 * math.sin(t * 0.3)
+        elif cmd == "left":
+            body_shift_x = -2
+            tail_wag = 4 * math.sin(t * 0.1)
+        elif cmd == "right":
+            body_shift_x = 2
+            tail_wag = 4 * math.sin(t * 0.1)
+
+        cx = self.bx + body_shift_x
+        cy = self.by
+        gy = self.h - 16  # ground y
+
+        # ── Tail ──────────────────────────────────────────────────────────
+        tail_base_x = cx - 80
+        tail_base_y = cy - 10 + body_drop * 0.5
+        tail_tip_x = tail_base_x - 35 + tail_wag
+        tail_tip_y = tail_base_y - 25
+        tail_mid_x = tail_base_x - 18 + tail_wag * 0.6
+        tail_mid_y = tail_base_y - 18
+        self.canvas.create_line(
+            tail_base_x, tail_base_y, tail_mid_x, tail_mid_y,
+            tail_tip_x, tail_tip_y,
+            smooth=True, width=4, fill=self.BODY_COLOR,
+        )
+
+        # ── Body ──────────────────────────────────────────────────────────
+        body_x1 = cx - 75
+        body_y1 = cy - 22
+        body_x2 = cx + 75
+        body_y2 = cy + 22 + body_drop * 0.5
+        self.canvas.create_rectangle(
+            body_x1, body_y1, body_x2, body_y2,
+            fill=self.BODY_COLOR, outline="#3878b0", width=2,
+        )
+        # Body highlight
+        self.canvas.create_rectangle(
+            body_x1 + 5, body_y1 + 3, body_x2 - 5, body_y1 + 10,
+            fill="#5aa0e9", outline="",
+        )
+
+        # ── Legs ──────────────────────────────────────────────────────────
+        leg_width = 10
+        leg_positions = [
+            ("fl", cx + 50, cy + 22),           # front-left
+            ("fr", cx + 62, cy + 22),           # front-right
+            ("bl", cx - 60, cy + 22 + body_drop),  # back-left
+            ("br", cx - 48, cy + 22 + body_drop),  # back-right
+        ]
+
+        for name, lx, ly in leg_positions:
+            # Walking leg animation
+            leg_offset = 0.0
+            if walk_phase != 0:
+                if name in ("fl", "br"):
+                    leg_offset = 12 * math.sin(walk_phase)
+                else:
+                    leg_offset = 12 * math.sin(walk_phase + math.pi)
+
+            # Sit: back legs are shorter/bent
+            leg_len = gy - ly
+            if cmd == "sit" and name.startswith("b"):
+                progress = min(t, 20) / 20.0
+                leg_len = max(10, leg_len - progress * 25)
+
+            foot_y = ly + leg_len
+            knee_y = ly + leg_len * 0.5
+            knee_offset = leg_offset * 0.6
+
+            # Upper leg
+            self.canvas.create_rectangle(
+                lx - leg_width // 2, ly,
+                lx + leg_width // 2, knee_y + knee_offset,
+                fill=self.LEG_COLOR, outline="#2a5a98", width=1,
+            )
+            # Lower leg
+            self.canvas.create_rectangle(
+                lx - leg_width // 2 + 1, knee_y + knee_offset,
+                lx + leg_width // 2 - 1, foot_y + leg_offset,
+                fill=self.LEG_COLOR, outline="#2a5a98", width=1,
+            )
+            # Paw
+            self.canvas.create_oval(
+                lx - 7, foot_y + leg_offset - 4,
+                lx + 7, foot_y + leg_offset + 4,
+                fill=self.PAW_COLOR, outline="#1a4a88",
+            )
+
+        # ── Neck ──────────────────────────────────────────────────────────
+        neck_x1 = cx + 65
+        neck_y1 = cy - 18
+        neck_x2 = cx + 85
+        neck_y2 = cy + 5
+        self.canvas.create_rectangle(
+            neck_x1, neck_y1 + head_bob * 0.3, neck_x2, neck_y2 + head_bob * 0.3,
+            fill=self.HEAD_COLOR, outline="#4890c9", width=1,
+        )
+
+        # ── Head ──────────────────────────────────────────────────────────
+        head_cx = cx + 100
+        head_cy = cy - 22 + head_bob
+        head_rx = 28
+        head_ry = 22
+
+        self.canvas.create_oval(
+            head_cx - head_rx, head_cy - head_ry,
+            head_cx + head_rx, head_cy + head_ry,
+            fill=self.HEAD_COLOR, outline="#4890c9", width=2,
+        )
+
+        # Ear
+        ear_x = head_cx - 5
+        ear_y = head_cy - head_ry
+        self.canvas.create_polygon(
+            ear_x - 8, ear_y + 2,
+            ear_x, ear_y - 15,
+            ear_x + 8, ear_y + 2,
+            fill="#4890c9", outline="#3878b0",
+        )
+        # Second ear
+        ear_x2 = head_cx + 5
+        self.canvas.create_polygon(
+            ear_x2 - 8, ear_y + 2,
+            ear_x2, ear_y - 15,
+            ear_x2 + 8, ear_y + 2,
+            fill="#4890c9", outline="#3878b0",
+        )
+
+        # Eye
+        eye_x = head_cx + 10
+        eye_y = head_cy - 4
+        self.canvas.create_oval(
+            eye_x - 5, eye_y - 5, eye_x + 5, eye_y + 5,
+            fill=self.EYE_WHITE, outline="#999",
+        )
+        self.canvas.create_oval(
+            eye_x - 2, eye_y - 2, eye_x + 2, eye_y + 2,
+            fill=self.EYE_PUPIL,
+        )
+
+        # Nose / snout
+        snout_x = head_cx + head_rx - 2
+        snout_y = head_cy + 2
+        self.canvas.create_oval(
+            snout_x - 5, snout_y - 4, snout_x + 5, snout_y + 4,
+            fill=self.NOSE_COLOR, outline="#111",
+        )
+
+        # Mouth (bark)
+        if mouth_open:
+            mx = head_cx + head_rx - 8
+            my = head_cy + 10
+            self.canvas.create_polygon(
+                mx - 10, my, mx + 5, my, mx - 3, my + 12,
+                fill=self.MOUTH_COLOR, outline="#aa2222",
+            )
+            # Bark text
+            bark_x = head_cx + head_rx + 15
+            bark_y = head_cy - 15
+            self.canvas.create_text(
+                bark_x, bark_y, text="WOOF!",
+                font=("Helvetica", 10, "bold"), fill="#e67e22",
+            )
+
+
 class FaceControlCenter:
     def __init__(self, root: tk.Tk) -> None:
         _configure_runtime_paths()
         self.root = root
         self.root.title("REVO — Robot Dog Control Center")
-        self.root.geometry("1280x860")
+        self.root.geometry("1280x1060")
 
         self.camera_index = 0
         self.width = 640
@@ -283,9 +572,14 @@ class FaceControlCenter:
         sidebar.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 5))
         sidebar.pack_propagate(False)
 
-        # Right: video feed
+        # Right: video feed + robot simulation
         right = ttk.Frame(body)
         right.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+
+        # Robot simulation at the bottom (pack first so it claims fixed height)
+        self.robot_sim = RobotDogSimulation(right, width=640, height=200)
+        self.robot_sim.canvas.pack(side=tk.BOTTOM, fill=tk.X, pady=(5, 0))
+
         self.video_label = ttk.Label(right)
         self.video_label.pack(fill=tk.BOTH, expand=True)
 
@@ -685,6 +979,7 @@ class FaceControlCenter:
             self._play_bark_audio()
 
         self.command_var.set(f"Last command: {command} (by {person})")
+        self.robot_sim.set_command(command)
 
     def _authorize_votes(self, now: float) -> None:
         if len(self.history) < self.history.maxlen:
@@ -1445,6 +1740,7 @@ class FaceControlCenter:
             self.root.after(20, self._update_loop)
 
     def _on_close(self) -> None:
+        self.robot_sim.destroy()
         self.stop_camera()
         self.root.destroy()
 

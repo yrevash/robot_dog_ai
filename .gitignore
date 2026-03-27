@@ -10,6 +10,7 @@ build/
 
 # macOS
 .DS_Store
+src/__pycache__/revo_pi.cpython-312.pyc
 **/.DS_Store
 
 # IDE

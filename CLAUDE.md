@@ -74,7 +74,35 @@ Revo_Robot_AI/
 │   ├── RevoFaceControl.spec        # Full build with mediapipe bundled
 │   └── RevoFaceControl_v2.spec     # Minimal build spec
 │
+├── pi_deploy/                      # Raspberry Pi deployment (FastAPI + web UI + UART)
+│   ├── app/
+│   │   ├── main.py                 # FastAPI routes + WebSockets
+│   │   ├── config.py               # Settings (serial device, thresholds, ports)
+│   │   ├── uart_bridge.py          # ESP32 command wrapper; mock when /dev/serial0 missing
+│   │   ├── gesture_map.py          # gesture name → one-line ESP32 command
+│   │   ├── ai_worker.py            # Background thread: frame → face → gesture → UART
+│   │   ├── camera_source.py        # PiCameraSource + RemoteFrameSource (WS-pushed)
+│   │   ├── robot_state.py          # Live state + WS pub/sub (debounced on change)
+│   │   └── ai/                     # face.py / gesture.py (thin wrappers on src/)
+│   ├── web/                        # Mobile UI — plain HTML/CSS/JS, no build step
+│   ├── docs/
+│   │   ├── SETUP.md                # Step-by-step Pi deployment
+│   │   ├── SESSION_NOTES.md        # What was built, design choices, open items
+│   │   ├── GUIDE.md                # Copy of top-level guide
+│   │   └── pi_esp32_integration.md # Hardware wiring reference
+│   ├── laptop_client.py            # Mode B: laptop runs AI, POSTs gestures to Pi
+│   ├── requirements.txt
+│   ├── run.sh
+│   └── README.md
+│
 └── CLAUDE.md                       # This file (project instructions for Claude Code)
+```
+
+Outside this repo, the matching ESP32 firmware lives at:
+```
+rbdg/tools/
+├── walk_test/walk_test.ino         # Original sketch — UNCHANGED, still works
+└── revo_uart/revo_uart.ino         # NEW — walk_test + Serial2 + gesture commands
 ```
 
 ---
@@ -194,6 +222,55 @@ Commands are sent as HTTP requests with JSON payload: `{person, command, source,
 | `PROJECT_ROOT` | resolved from `__file__` | `experiments/utils.py` |
 
 ---
+
+## Raspberry Pi deployment (pi_deploy/)
+
+A self-contained FastAPI server that drives the ESP32 robot dog over Pi GPIO
+UART (not USB). Reuses `src/face_embedding.py` for face recognition — no code
+duplication.
+
+**Three camera modes, switchable live from the web UI:**
+
+| Mode | Camera | AI runs on | Use case |
+|---|---|---|---|
+| `pi_camera` | USB webcam on Pi | Pi | Standalone; Pi-only setup |
+| `laptop_stream` | Phone/laptop browser | Pi | Nicer camera, Pi still does AI |
+| `laptop_client` | Laptop webcam | Laptop (`laptop_client.py`) | Offload AI from Pi |
+
+**Pi ↔ ESP32 wiring (GPIO UART, not USB):**
+
+```
+Pi pin 8  (GPIO 14, TXD) ──► ESP32 GPIO 16 (RX2)
+Pi pin 10 (GPIO 15, RXD) ◄── ESP32 GPIO 17 (TX2)
+Pi pin 6  (GND)          ──► ESP32 GND
+```
+
+Both sides 3.3 V — no level shifter. Run `sudo raspi-config` → Interface →
+Serial Port → login shell **No**, hardware **Yes**, then add user to `dialout`
+group and reboot.
+
+**Running:**
+
+```bash
+cd Revo_Robot_AI && source venv/bin/activate
+pip install -r pi_deploy/requirements.txt
+./pi_deploy/run.sh
+# Open http://<pi-ip>:8080 on phone (same WiFi)
+```
+
+Auto-falls back to mock UART when `/dev/serial0` is missing, so the whole
+thing runs on a laptop for development. Set `REVO_NO_AI=1` to serve the UI
+without starting the AI worker (doesn't grab the webcam).
+
+**Matching firmware:** `rbdg/tools/revo_uart/revo_uart.ino` — an extension
+of `walk_test.ino` that listens on both USB Serial and Serial2 (GPIO 16/17)
+and adds high-level gesture commands (`sit`, `tail_wag`, `bark`, `greet`,
+`left`, `right`, `backward`, `ping`). Same safety limits, same gait, same
+standing angles. Original `walk_test.ino` is unchanged.
+
+See `pi_deploy/docs/SETUP.md` for step-by-step deployment and
+`pi_deploy/docs/SESSION_NOTES.md` for the design rationale and what was
+built this session.
 
 ## What Was Built (Session Log)
 

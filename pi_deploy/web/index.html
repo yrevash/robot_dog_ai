@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>REVO Remote</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header>
+    <h1>REVO Remote</h1>
+    <div id="dot" class="dot off"></div>
+  </header>
+
+  <section class="mode">
+    <div class="row">
+      <label>AI inference</label>
+      <button id="ai-toggle" class="primary">Start AI</button>
+    </div>
+    <label>Camera source</label>
+    <div class="seg" id="mode-seg">
+      <button data-mode="pi_camera" class="active">Pi camera</button>
+      <button data-mode="laptop_client">Laptop AI</button>
+      <button data-mode="laptop_stream">Laptop stream</button>
+    </div>
+  </section>
+
+  <section class="stream">
+    <img id="feed" src="/video_feed" alt="robot view">
+    <video id="localcam" playsinline muted></video>
+  </section>
+
+  <section class="status">
+    <div><b>Mode:</b> <span id="s-mode">—</span></div>
+    <div><b>Authorized:</b> <span id="s-auth">—</span></div>
+    <div><b>Last gesture:</b> <span id="s-gest">—</span></div>
+    <div><b>Last cmd:</b> <span id="s-cmd">—</span></div>
+    <div><b>Speed:</b> <span id="s-speed">3</span></div>
+    <div><b>FPS:</b> <span id="s-fps">0</span></div>
+    <div><b>UART:</b> <span id="s-uart">mock</span></div>
+  </section>
+
+  <section class="controls">
+    <div class="row">
+      <button data-cmd="stand">Stand</button>
+      <button data-cmd="walk" class="primary">Walk</button>
+      <button data-cmd="stop" class="danger">Stop</button>
+    </div>
+    <div class="row">
+      <label>Speed</label>
+      <div class="seg" id="speed-seg">
+        <button data-speed="1">1</button>
+        <button data-speed="2">2</button>
+        <button data-speed="3" class="active">3</button>
+        <button data-speed="4">4</button>
+        <button data-speed="5">5</button>
+      </div>
+    </div>
+    <div class="row wrap" id="gesture-row"></div>
+    <div class="row">
+      <input id="raw" placeholder="raw command, e.g. lfa 45" autocomplete="off">
+      <button id="raw-send">Send</button>
+    </div>
+  </section>
+
+  <section class="log">
+    <b>Log</b>
+    <ul id="log"></ul>
+  </section>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

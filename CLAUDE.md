@@ -245,9 +245,22 @@ Pi pin 10 (GPIO 15, RXD) ◄── ESP32 GPIO 17 (TX2)
 Pi pin 6  (GND)          ──► ESP32 GND
 ```
 
-Both sides 3.3 V — no level shifter. Run `sudo raspi-config` → Interface →
-Serial Port → login shell **No**, hardware **Yes**, then add user to `dialout`
-group and reboot.
+Both sides 3.3 V — no level shifter. **Setup depends on the Pi OS**:
+
+- **Raspberry Pi OS:** `sudo raspi-config` → Interface → Serial Port → login
+  shell **No**, hardware **Yes**. Device lands at `/dev/serial0`.
+- **Ubuntu on Pi 5** (what we actually deployed on): no raspi-config. Edit
+  `/boot/firmware/config.txt`, add `enable_uart=1` and `dtparam=uart0=on`.
+  Edit `/boot/firmware/cmdline.txt` and remove any `console=serial0,...` or
+  `console=ttyAMA0,...` entry (leave `console=tty1` alone — that's HDMI).
+  Then `sudo systemctl disable serial-getty@ttyS0.service serial-getty@ttyAMA0.service`.
+  Device lands at `/dev/ttyAMA0` (no `/dev/serial0` symlink).
+
+After either path: `sudo usermod -a -G dialout,video $USER` and reboot. The
+`video` group is required for webcam access on Ubuntu.
+
+`run.sh` auto-detects which device exists (`/dev/serial0` on Pi OS, falls
+through to `/dev/ttyAMA0` on Ubuntu, else forces mock).
 
 **Running:**
 
@@ -268,9 +281,42 @@ and adds high-level gesture commands (`sit`, `tail_wag`, `bark`, `greet`,
 `left`, `right`, `backward`, `ping`). Same safety limits, same gait, same
 standing angles. Original `walk_test.ino` is unchanged.
 
-See `pi_deploy/docs/SETUP.md` for step-by-step deployment and
-`pi_deploy/docs/SESSION_NOTES.md` for the design rationale and what was
-built this session.
+See `pi_deploy/docs/SETUP.md` for step-by-step deployment,
+`pi_deploy/docs/SESSION_NOTES.md` for the build rationale, and
+`pi_deploy/docs/DEPLOYMENT_JOURNAL.md` for the real-world Ubuntu/Pi 5
+deployment walk-through with every gotcha encountered.
+
+### Common Pi-side gotchas (Ubuntu 24.04 on Pi 5, verified live)
+
+| Gotcha | Symptom | Fix |
+|---|---|---|
+| Wrong UART device name | `run.sh` falls back to mock | Ubuntu uses `/dev/ttyAMA0`, not `/dev/serial0`. `run.sh` now auto-detects both. |
+| Pi 5 USB current cap | Webcam causes brown-out when AI starts | Pi 5 limits USB to 600 mA unless it detects official 27 W PSU. Either use official PSU or add `usb_max_current_enable=1` to `/boot/firmware/config.txt`. |
+| `/dev/video*` permission denied | Camera fails to open even though device exists | `sudo usermod -a -G video $USER` + reboot. |
+| Port 8080 unreachable from phone/laptop | Web UI times out, ping works | `sudo ufw allow 8080/tcp` on Pi. |
+| Laptop client: `no face` forever | Preview shows face but detector misses it | MacBook default capture is 1280×720+, YuNet calibrated for 640×480. `laptop_client.py` now forces 640×480 via `cv2.CAP_PROP_FRAME_WIDTH/HEIGHT`. |
+| Face model / face_db.npz missing on Pi | `FaceRecognizer` raises on startup | `scp` from laptop: `data/face_db.npz` + `data/known_faces/` + `models/*.onnx`. |
+
+### End-to-end test sequence (what was verified)
+
+```bash
+# 1. UART link alone
+python3 -c "
+import serial, time
+s = serial.Serial('/dev/ttyAMA0', 115200, timeout=2); time.sleep(2)
+s.write(b'ping\n'); print(s.readline().decode().strip())
+"
+# → expect: pong
+
+# 2. HTTP + web UI + UART relay
+./pi_deploy/run.sh
+# → open http://<pi-ip>:8080, UART field shows "connected"
+# → press Stand/Walk/Stop buttons, ESP32 logs the commands
+
+# 3. Full AI from laptop
+python pi_deploy/laptop_client.py --pi-url http://<pi-ip>:8080 --preview
+# → laptop webcam → face + gesture → POST /api/gesture → Pi → ESP32
+```
 
 ## What Was Built (Session Log)
 

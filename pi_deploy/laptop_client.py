@@ -40,6 +40,8 @@ def main():
 
     pi = args.pi_url.rstrip("/")
     cap = cv2.VideoCapture(args.camera)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
     if not cap.isOpened():
         raise SystemExit(f"Cannot open camera index {args.camera}")
 
@@ -53,13 +55,19 @@ def main():
         print(f"[warn] could not set mode on Pi: {e}")
 
     print(f"[laptop_client] streaming gestures → {pi}")
+    last_heartbeat = 0.0
+    frames_seen = 0
+    faces_seen = 0
     try:
         while True:
             ok, frame = cap.read()
             if not ok:
                 time.sleep(0.02); continue
+            frames_seen += 1
 
-            name, _box = face.process(frame)
+            name, box = face.process(frame)
+            if box is not None:
+                faces_seen += 1
             g = gest.process(frame) if name else None
 
             if g and name:
@@ -70,10 +78,23 @@ def main():
                 except Exception as e:
                     print(f"[err] POST /api/gesture: {e}")
 
+            # Heartbeat every 2 seconds so you can see it's alive
+            now = time.time()
+            if now - last_heartbeat >= 2.0:
+                print(f"[hb] frames={frames_seen} faces_seen={faces_seen} "
+                      f"authorized={name or '-'}")
+                last_heartbeat = now
+                frames_seen = 0
+                faces_seen = 0
+
             if args.preview:
                 label = f"{name or 'no face'} | {g or ''}"
+                color = (0, 255, 0) if name else (0, 0, 255)
+                if box is not None:
+                    x1, y1, x2, y2 = box
+                    cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
                 cv2.putText(frame, label, (10, 28),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
                 cv2.imshow("laptop_client", frame)
                 if cv2.waitKey(1) & 0xFF == 27:
                     break
